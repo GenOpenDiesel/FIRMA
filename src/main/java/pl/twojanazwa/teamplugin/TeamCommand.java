@@ -37,7 +37,7 @@ public class TeamCommand implements CommandExecutor {
         switch (subCommand) {
             case "stworz":
                 if (args.length < 2) {
-                    sendUsage(player, "/team stworz <tag>");
+                    sendUsage(player, "/team stworz <nazwa>");
                     return true;
                 }
                 teamManager.createTeam(player, args[1]);
@@ -78,7 +78,7 @@ public class TeamCommand implements CommandExecutor {
                 break;
             case "info":
                  if (args.length < 2) {
-                    sendUsage(player, "/team info <tag>");
+                    sendUsage(player, "/team info <nazwa>");
                     return true;
                 }
                 teamManager.getTeamInfo(player, args[1]);
@@ -108,14 +108,14 @@ public class TeamCommand implements CommandExecutor {
 
     private void sendHelp(Player player) {
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
-        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team stworz <tag> &7- Tworzy nowy team."));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team stworz <nazwa> &7- Tworzy nowy team."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team zapros <nick> &7- Zaprasza gracza do teamu."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team akceptuj &7- Akceptuje zaproszenie do teamu."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team wyrzuc <nick> &7- Wyrzuca gracza z teamu."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team usun &7- Usuwa Twoj team."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team lider <nick> &7- Awansuje gracza na lidera."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team degrad <nick> &7- Degraduje lidera do czlonka."));
-        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team info <tag> &7- Wyswietla informacje o teamie."));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team info <nazwa> &7- Wyswietla informacje o teamie."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team pvp &7- Wlacza/wylacza pvp w teamie."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team opusc &7- Opuszcza obecny team."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team top &7- Wyswietla top 10 teamow."));
