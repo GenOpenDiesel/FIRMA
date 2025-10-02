@@ -60,7 +60,9 @@ public class TeamManager {
     private void setCooldown(Player player) {
         cooldowns.put(player.getUniqueId(), System.currentTimeMillis());
     }
-
+public Map<String, Team> getTeams() {
+        return Collections.unmodifiableMap(teams);
+    }
     public void createTeam(Player player, String name) {
         if (getTeamByPlayer(player) != null) {
             player.sendMessage(getMessage("juz-w-teamie"));
