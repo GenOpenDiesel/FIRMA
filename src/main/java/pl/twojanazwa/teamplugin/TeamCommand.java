@@ -85,7 +85,12 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
                 break;
             case "info":
                  if (args.length < 2) {
-                    sendUsage(player, "/team info <nazwa>");
+                    Team team = teamManager.getTeamByPlayer(player);
+                    if(team == null) {
+                        sendUsage(player, "/team info <nazwa>");
+                        return true;
+                    }
+                    teamManager.getTeamInfo(player, team.getName());
                     return true;
                 }
                 teamManager.getTeamInfo(player, args[1]);
@@ -122,7 +127,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team usun &7- Usuwa Twoj team."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team lider <nick> &7- Awansuje gracza na lidera."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team degrad <nick> &7- Degraduje lidera do czlonka."));
-        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team info <nazwa> &7- Wyswietla informacje o teamie."));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team info [nazwa] &7- Wyswietla informacje o teamie."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team pvp &7- Wlacza/wylacza pvp w teamie."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team opusc &7- Opuszcza obecny team."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team top &7- Wyswietla top 10 teamow."));
