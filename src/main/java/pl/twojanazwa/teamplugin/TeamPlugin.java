@@ -1,6 +1,7 @@
 package pl.twojanazwa.teamplugin;
 
 import net.milkbowl.vault.economy.Economy;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.serialization.ConfigurationSerialization;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -14,8 +15,9 @@ public class TeamPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        // Rejestracja naszej klasy Team do zapisu
+        // Rejestracja naszych klas do zapisu
         ConfigurationSerialization.registerClass(Team.class);
+        ConfigurationSerialization.registerClass(PlayerStats.class);
 
         if (!setupEconomy()) {
             getLogger().severe("Nie znaleziono Vault! Wylaczam plugin.");
@@ -30,6 +32,12 @@ public class TeamPlugin extends JavaPlugin {
         teamManager.loadTeams(); // Wczytaj teamy z pliku
 
         Objects.requireNonNull(this.getCommand("team")).setExecutor(new TeamCommand(teamManager));
+        getServer().getPluginManager().registerEvents(new PlayerDeathListener(teamManager), this);
+
+        if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            new TeamPlaceholders(this, teamManager).register();
+        }
+        
         getLogger().info("TeamPlugin zostal wlaczony!");
     }
 
