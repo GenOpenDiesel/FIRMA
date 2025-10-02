@@ -289,4 +289,19 @@ public class TeamManager {
     public Team getTeamByTag(String tag) {
         return teams.get(tag.toLowerCase());
     }
+
+    public void showTopTeams(Player player) {
+        List<Team> sortedTeams = teams.values().stream()
+                .sorted(Comparator.comparingInt(Team::getPoints).reversed())
+                .limit(10)
+                .collect(Collectors.toList());
+
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eTop 10 teamow:"));
+        for (int i = 0; i < sortedTeams.size(); i++) {
+            Team team = sortedTeams.get(i);
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e" + (i + 1) + ". &f" + team.getTag() + " &7- &e" + team.getPoints() + " pkt"));
+        }
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
+    }
 }
