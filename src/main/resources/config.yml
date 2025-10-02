@@ -1,11 +1,14 @@
 # Koszt zalozenia teamu
-koszt-stworzenia: 50000.0
+creation-cost:
+  items:
+    - "DIAMOND:64"
+    - "GOLD_INGOT:128"
 
 # Wszystkie wiadomosci w pluginie. Mozesz uzywac kodow kolorow &.
 messages:
   juz-w-teamie: "&9Team &8» &7Jestes juz w teamie."
   tag-zajety: "&9Team &8» &7Team o takim tagu juz istnieje."
-  brak-pieniedzy: "&9Team &8» &7Nie masz wystarczajaco pieniedzy (&e%cost%&7)."
+  brak-przedmiotow: "&9Team &8» &7Nie masz wystarczajaco duzo przedmiotow, aby stworzyc team."
   blad-pobierania-pieniedzy: "&9Team &8» &7Wystapil blad podczas pobierania pieniedzy."
   team-stworzony: "&9Team &8» &7Stworzyles team o tagu: &e%tag%"
   nie-jestes-liderem: "&9Team &8» &7Nie jestes liderem teamu."
