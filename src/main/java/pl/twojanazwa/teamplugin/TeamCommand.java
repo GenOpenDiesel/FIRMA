@@ -1,13 +1,20 @@
 package pl.twojanazwa.teamplugin;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-public class TeamCommand implements CommandExecutor {
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
+public class TeamCommand implements CommandExecutor, TabCompleter {
 
     private final TeamManager teamManager;
 
@@ -122,5 +129,30 @@ public class TeamCommand implements CommandExecutor {
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team sethome &7- Ustawia dom teamu."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team home &7- Teleportuje do domu teamu."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
+    }
+
+    @Override
+    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+        if (args.length == 1) {
+            return Arrays.asList("stworz", "zapros", "akceptuj", "wyrzuc", "usun", "lider", "degrad", "info", "pvp", "opusc", "top", "sethome", "home").stream()
+                    .filter(s -> s.startsWith(args[0].toLowerCase()))
+                    .collect(Collectors.toList());
+        } else if (args.length == 2) {
+            switch (args[0].toLowerCase()) {
+                case "zapros":
+                case "wyrzuc":
+                case "lider":
+                case "degrad":
+                    return Bukkit.getOnlinePlayers().stream()
+                            .map(Player::getName)
+                            .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
+                            .collect(Collectors.toList());
+                case "info":
+                    return teamManager.getTeams().keySet().stream()
+                            .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
+                            .collect(Collectors.toList());
+            }
+        }
+        return new ArrayList<>();
     }
 }
