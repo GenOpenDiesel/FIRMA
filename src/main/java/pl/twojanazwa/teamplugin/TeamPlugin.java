@@ -12,6 +12,7 @@ public class TeamPlugin extends JavaPlugin {
 
     private static Economy econ = null;
     private TeamManager teamManager;
+    private PlayerStatsManager playerStatsManager;
 
     @Override
     public void onEnable() {
@@ -28,15 +29,18 @@ public class TeamPlugin extends JavaPlugin {
         // Zapisz domyslny config.yml, jesli nie istnieje
         saveDefaultConfig();
 
-        this.teamManager = new TeamManager(this);
+        this.playerStatsManager = new PlayerStatsManager(this);
+        playerStatsManager.loadStats();
+
+        this.teamManager = new TeamManager(this, playerStatsManager);
         teamManager.loadTeams(); // Wczytaj teamy z pliku
 
         Objects.requireNonNull(this.getCommand("team")).setExecutor(new TeamCommand(teamManager));
-        getServer().getPluginManager().registerEvents(new PlayerDeathListener(teamManager), this);
+        getServer().getPluginManager().registerEvents(new PlayerDeathListener(playerStatsManager), this);
         getServer().getPluginManager().registerEvents(new TeamChatListener(teamManager), this);
 
         if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
-            new TeamPlaceholders(this, teamManager).register();
+            new TeamPlaceholders(this, teamManager, playerStatsManager).register();
         }
         
         getLogger().info("TeamPlugin zostal wlaczony!");
@@ -46,6 +50,9 @@ public class TeamPlugin extends JavaPlugin {
     public void onDisable() {
         if (teamManager != null) {
             teamManager.saveTeams(); // Zapisz teamy do pliku
+        }
+        if (playerStatsManager != null) {
+            playerStatsManager.saveStats();
         }
         getLogger().info("TeamPlugin zostal wylaczony.");
     }
