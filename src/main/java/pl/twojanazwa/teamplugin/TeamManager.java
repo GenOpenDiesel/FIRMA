@@ -45,7 +45,7 @@ public class TeamManager {
             player.sendMessage(getMessage("tag-zajety"));
             return;
         }
-        
+
         double creationCost = plugin.getConfig().getDouble("koszt-stworzenia");
         Economy econ = TeamPlugin.getEconomy();
         if (econ.getBalance(player) < creationCost) {
@@ -191,6 +191,7 @@ public class TeamManager {
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eInformacje o teamie: &f" + team.getTag()));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eZalozyciel: &f" + (owner != null ? owner.getName() : "Offline")));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&ePunkty: &f" + team.getPoints()));
 
         String leaders = team.getLeaders().stream()
                 .map(Bukkit::getOfflinePlayer)
@@ -198,12 +199,12 @@ public class TeamManager {
                 .collect(Collectors.joining(", "));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eLiderzy: &f" + leaders));
         
-        String members = team.getMembers().stream()
-                .filter(uuid -> !team.isLeader(uuid))
-                .map(Bukkit::getOfflinePlayer)
-                .map(p -> p.getName() != null ? p.getName() : "Nieznany")
-                .collect(Collectors.joining(", "));
-        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eCzlonkowie: &f" + (members.isEmpty() ? "Brak" : members)));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eCzlonkowie:"));
+        team.getMembers().forEach(uuid -> {
+            PlayerStats stats = team.getPlayerStats(uuid);
+            String name = Bukkit.getOfflinePlayer(uuid).getName();
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "  &f- " + name + " &7(Zabojstwa: &a" + stats.getKills() + "&7, Smierci: &c" + stats.getDeaths() + "&7)"));
+        });
         
         String pvpStatus = team.isPvpEnabled() ? getMessage("status-pvp-wlaczone") : getMessage("status-pvp-wylaczone");
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&ePVP: " + pvpStatus));
@@ -283,5 +284,9 @@ public class TeamManager {
                 teams.put(key, team);
             }
         });
+    }
+
+    public Team getTeamByTag(String tag) {
+        return teams.get(tag.toLowerCase());
     }
 }
