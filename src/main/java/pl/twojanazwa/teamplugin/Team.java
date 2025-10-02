@@ -1,6 +1,7 @@
 package pl.twojanazwa.teamplugin;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.configuration.serialization.ConfigurationSerializable;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
@@ -16,6 +17,7 @@ public class Team implements ConfigurationSerializable {
     private boolean pvpEnabled;
     private int points;
     private final Map<UUID, PlayerStats> playerStats;
+    private Location home;
 
     public Team(String tag, UUID owner) {
         this.tag = tag;
@@ -28,6 +30,7 @@ public class Team implements ConfigurationSerializable {
         this.points = 1000; // Domyślne punkty
         this.playerStats = new HashMap<>();
         this.playerStats.put(owner, new PlayerStats());
+        this.home = null;
     }
 
     // Konstruktor do wczytywania danych
@@ -45,6 +48,9 @@ public class Team implements ConfigurationSerializable {
                 playerStats.put(UUID.fromString(uuid), new PlayerStats((Map<String, Object>) statsMap));
             });
         }
+        if (map.containsKey("home")) {
+            this.home = (Location) map.get("home");
+        }
     }
 
     @Override
@@ -59,6 +65,9 @@ public class Team implements ConfigurationSerializable {
         Map<String, Object> statsMap = new HashMap<>();
         playerStats.forEach((uuid, stats) -> statsMap.put(uuid.toString(), stats.serialize()));
         map.put("playerStats", statsMap);
+        if (home != null) {
+            map.put("home", home);
+        }
         return map;
     }
 
@@ -74,6 +83,8 @@ public class Team implements ConfigurationSerializable {
     public void addPoints(int amount) { this.points += amount; }
     public void removePoints(int amount) { this.points -= amount; }
     public PlayerStats getPlayerStats(UUID uuid) { return playerStats.get(uuid); }
+    public Location getHome() { return home; }
+    public void setHome(Location home) { this.home = home; }
 
 
     public void addMember(UUID uuid) {
