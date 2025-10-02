@@ -1,12 +1,12 @@
 package pl.twojanazwa.teamplugin;
 
-import net.milkbowl.vault.economy.Economy;
-import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,20 +46,43 @@ public class TeamManager {
             return;
         }
 
-        double creationCost = plugin.getConfig().getDouble("koszt-stworzenia");
-        Economy econ = TeamPlugin.getEconomy();
-        if (econ.getBalance(player) < creationCost) {
-            player.sendMessage(getMessage("brak-pieniedzy", "%cost%", String.valueOf(creationCost)));
+        List<ItemStack> requiredItems = new ArrayList<>();
+        for (String itemString : plugin.getConfig().getStringList("creation-cost.items")) {
+            String[] parts = itemString.split(":");
+            if (parts.length == 2) {
+                try {
+                    Material material = Material.valueOf(parts[0].toUpperCase());
+                    int amount = Integer.parseInt(parts[1]);
+                    requiredItems.add(new ItemStack(material, amount));
+                } catch (IllegalArgumentException e) {
+                    plugin.getLogger().warning("Nieprawidłowy materiał w config.yml: " + parts[0]);
+                }
+            }
+        }
+
+        if (!hasEnoughItems(player, requiredItems)) {
+            player.sendMessage(getMessage("brak-przedmiotow"));
             return;
         }
 
-        EconomyResponse r = econ.withdrawPlayer(player, creationCost);
-        if (r.transactionSuccess()) {
-            Team team = new Team(tag, player.getUniqueId());
-            teams.put(tag.toLowerCase(), team);
-            player.sendMessage(getMessage("team-stworzony", "%tag%", tag));
-        } else {
-            player.sendMessage(getMessage("blad-pobierania-pieniedzy"));
+        removeItems(player, requiredItems);
+        Team team = new Team(tag, player.getUniqueId());
+        teams.put(tag.toLowerCase(), team);
+        player.sendMessage(getMessage("team-stworzony", "%tag%", tag));
+    }
+
+    private boolean hasEnoughItems(Player player, List<ItemStack> items) {
+        for (ItemStack item : items) {
+            if (!player.getInventory().containsAtLeast(item, item.getAmount())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void removeItems(Player player, List<ItemStack> items) {
+        for (ItemStack item : items) {
+            player.getInventory().removeItem(item);
         }
     }
 
