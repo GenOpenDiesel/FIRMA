@@ -3,6 +3,7 @@ package pl.twojanazwa.teamplugin;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -11,16 +12,17 @@ import org.bukkit.inventory.ItemStack;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class TeamManager {
 
-    public final TeamPlugin plugin; // Zmieniono z private na public
+    public final TeamPlugin plugin;
     private final Map<String, Team> teams = new HashMap<>();
     private final Map<UUID, String> invites = new HashMap<>();
+    private final Map<UUID, Long> cooldowns = new HashMap<>();
     private File teamsFile;
     private FileConfiguration teamsConfig;
-
 
     public TeamManager(TeamPlugin plugin) {
         this.plugin = plugin;
@@ -35,6 +37,25 @@ public class TeamManager {
         return ChatColor.translateAlternateColorCodes('&', message);
     }
 
+    private boolean isAlphanumeric(String str) {
+        return str != null && str.matches("^[a-zA-Z0-9]+$");
+    }
+
+    private boolean checkCooldown(Player player) {
+        if (cooldowns.containsKey(player.getUniqueId())) {
+            long secondsLeft = ((cooldowns.get(player.getUniqueId()) / 1000) + 5) - (System.currentTimeMillis() / 1000);
+            if (secondsLeft > 0) {
+                player.sendMessage(getMessage("cooldown", "%seconds%", String.valueOf(secondsLeft)));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void setCooldown(Player player) {
+        cooldowns.put(player.getUniqueId(), System.currentTimeMillis());
+    }
+
     public void createTeam(Player player, String tag) {
         if (getTeamByPlayer(player) != null) {
             player.sendMessage(getMessage("juz-w-teamie"));
@@ -43,6 +64,11 @@ public class TeamManager {
 
         if (teams.containsKey(tag.toLowerCase())) {
             player.sendMessage(getMessage("tag-zajety"));
+            return;
+        }
+
+        if (!isAlphanumeric(tag)) {
+            player.sendMessage(getMessage("tag-nieprawidlowy"));
             return;
         }
 
@@ -68,7 +94,7 @@ public class TeamManager {
         removeItems(player, requiredItems);
         Team team = new Team(tag, player.getUniqueId());
         teams.put(tag.toLowerCase(), team);
-        player.sendMessage(getMessage("team-stworzony", "%tag%", tag));
+        Bukkit.broadcastMessage(getMessage("team-stworzony-globalnie", "%player%", player.getName(), "%tag%", tag));
     }
 
     private boolean hasEnoughItems(Player player, List<ItemStack> items) {
@@ -87,6 +113,7 @@ public class TeamManager {
     }
 
     public void invitePlayer(Player leader, String targetName) {
+        if (checkCooldown(leader)) return;
         Team team = getTeamByPlayer(leader);
         if (team == null || !team.isLeader(leader.getUniqueId())) {
             leader.sendMessage(getMessage("nie-jestes-liderem"));
@@ -107,9 +134,11 @@ public class TeamManager {
         invites.put(target.getUniqueId(), team.getTag());
         leader.sendMessage(getMessage("zaproszono-gracza", "%player%", target.getName()));
         target.sendMessage(getMessage("otrzymano-zaproszenie", "%tag%", team.getTag()));
+        setCooldown(leader);
     }
 
     public void acceptInvite(Player player) {
+        if (checkCooldown(player)) return;
         if (!invites.containsKey(player.getUniqueId())) {
             player.sendMessage(getMessage("brak-zaproszen"));
             return;
@@ -126,19 +155,20 @@ public class TeamManager {
 
         team.addMember(player.getUniqueId());
         invites.remove(player.getUniqueId());
-        player.sendMessage(getMessage("dolaczono-do-teamu", "%tag%", team.getTag()));
-        team.broadcast(getMessage("gracz-dolaczyl", "%player%", player.getName()));
+        Bukkit.broadcastMessage(getMessage("gracz-dolaczyl-globalnie", "%player%", player.getName(), "%tag%", team.getTag()));
+        setCooldown(player);
     }
 
     public void kickPlayer(Player leader, String targetName) {
+        if (checkCooldown(leader)) return;
         Team team = getTeamByPlayer(leader);
         if (team == null || !team.isLeader(leader.getUniqueId())) {
             leader.sendMessage(getMessage("nie-jestes-liderem"));
             return;
         }
 
-        Player target = Bukkit.getPlayer(targetName);
-        if (target == null || !team.isMember(target.getUniqueId())) {
+        OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
+        if (!team.isMember(target.getUniqueId())) {
              leader.sendMessage(getMessage("gracz-nie-w-teamie"));
             return;
         }
@@ -150,6 +180,7 @@ public class TeamManager {
 
         team.removeMember(target.getUniqueId());
         team.broadcast(getMessage("gracz-wyrzucony", "%player%", target.getName()));
+        setCooldown(leader);
     }
 
     public void deleteTeam(Player owner) {
@@ -159,7 +190,7 @@ public class TeamManager {
             return;
         }
 
-        team.broadcast(getMessage("team-rozwiazany"));
+        Bukkit.broadcastMessage(getMessage("team-rozwiazany-globalnie", "%tag%", team.getTag()));
         teams.remove(team.getTag().toLowerCase());
     }
 
@@ -247,6 +278,7 @@ public class TeamManager {
     }
 
     public void leaveTeam(Player player) {
+        if (checkCooldown(player)) return;
         Team team = getTeamByPlayer(player);
         if(team == null) {
             player.sendMessage(getMessage("brak-teamu"));
@@ -259,8 +291,32 @@ public class TeamManager {
         }
 
         team.removeMember(player.getUniqueId());
-        team.broadcast(getMessage("gracz-opuscil-team", "%player%", player.getName()));
-        player.sendMessage(getMessage("opusciles-team"));
+        Bukkit.broadcastMessage(getMessage("gracz-opuscil-team-globalnie", "%player%", player.getName(), "%tag%", team.getTag()));
+        setCooldown(player);
+    }
+
+    public void setHome(Player player) {
+        Team team = getTeamByPlayer(player);
+        if (team == null || !team.isLeader(player.getUniqueId())) {
+            player.sendMessage(getMessage("nie-jestes-liderem"));
+            return;
+        }
+        team.setHome(player.getLocation());
+        player.sendMessage(getMessage("ustawiono-dom"));
+    }
+
+    public void teleportHome(Player player) {
+        Team team = getTeamByPlayer(player);
+        if (team == null) {
+            player.sendMessage(getMessage("brak-teamu"));
+            return;
+        }
+        if (team.getHome() == null) {
+            player.sendMessage(getMessage("dom-nie-ustawiony"));
+            return;
+        }
+        player.teleport(team.getHome());
+        player.sendMessage(getMessage("teleportowano-do-domu"));
     }
 
     public Team getTeamByPlayer(Player player) {
@@ -272,8 +328,6 @@ public class TeamManager {
         return null;
     }
     
-    // --- Metody do zapisu i wczytywania ---
-
     private void createTeamsFile() {
         teamsFile = new File(plugin.getDataFolder(), "teams.yml");
         if (!teamsFile.exists()) {
