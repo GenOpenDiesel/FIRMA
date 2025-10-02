@@ -92,6 +92,12 @@ public class TeamCommand implements CommandExecutor {
             case "top":
                 teamManager.showTopTeams(player);
                 break;
+            case "sethome":
+                teamManager.setHome(player);
+                break;
+            case "home":
+                teamManager.teleportHome(player);
+                break;
             default:
                 sendHelp(player);
                 break;
@@ -113,6 +119,8 @@ public class TeamCommand implements CommandExecutor {
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team pvp &7- Wlacza/wylacza pvp w teamie."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team opusc &7- Opuszcza obecny team."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team top &7- Wyswietla top 10 teamow."));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team sethome &7- Ustawia dom teamu."));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team home &7- Teleportuje do domu teamu."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
     }
 }
