@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 public class TeamManager {
 
-    private final TeamPlugin plugin;
+    public final TeamPlugin plugin; // Zmieniono z private na public
     private final Map<String, Team> teams = new HashMap<>();
     private final Map<UUID, String> invites = new HashMap<>();
     private File teamsFile;
