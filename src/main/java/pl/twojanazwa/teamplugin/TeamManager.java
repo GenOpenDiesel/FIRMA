@@ -24,11 +24,14 @@ public class TeamManager {
     private File teamsFile;
     private FileConfiguration teamsConfig;
     private final PlayerStatsManager playerStatsManager;
+    private List<Team> topTeamsCache = new ArrayList<>();
 
     public TeamManager(TeamPlugin plugin, PlayerStatsManager playerStatsManager) {
         this.plugin = plugin;
         this.playerStatsManager = playerStatsManager;
         createTeamsFile();
+        // Uruchomienie schedulera do aktualizacji rankingu co 5 minut
+        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::updateTopTeams, 0L, 20L * 60 * 5);
     }
 
     private String getMessage(String path, String... replacements) {
@@ -58,19 +61,19 @@ public class TeamManager {
         cooldowns.put(player.getUniqueId(), System.currentTimeMillis());
     }
 
-    public void createTeam(Player player, String tag) {
+    public void createTeam(Player player, String name) {
         if (getTeamByPlayer(player) != null) {
             player.sendMessage(getMessage("juz-w-teamie"));
             return;
         }
 
-        if (teams.containsKey(tag.toLowerCase())) {
-            player.sendMessage(getMessage("tag-zajety"));
+        if (teams.containsKey(name.toLowerCase())) {
+            player.sendMessage(getMessage("nazwa-zajeta"));
             return;
         }
 
-        if (!isAlphanumeric(tag) || tag.length() < 2 || tag.length() > 8) {
-            player.sendMessage(getMessage("tag-nieprawidlowy"));
+        if (!isAlphanumeric(name) || name.length() < 2 || name.length() > 16) {
+            player.sendMessage(getMessage("nazwa-nieprawidlowa"));
             return;
         }
 
@@ -98,9 +101,9 @@ public class TeamManager {
         }
 
         removeItems(player, requiredItems);
-        Team team = new Team(tag, player.getUniqueId(), playerStatsManager);
-        teams.put(tag.toLowerCase(), team);
-        Bukkit.broadcastMessage(getMessage("team-stworzony-globalnie", "%player%", player.getName(), "%tag%", tag));
+        Team team = new Team(name, player.getUniqueId(), playerStatsManager);
+        teams.put(name.toLowerCase(), team);
+        Bukkit.broadcastMessage(getMessage("team-stworzony-globalnie", "%player%", player.getName(), "%nazwa%", name));
     }
 
     private boolean hasEnoughItems(Player player, List<ItemStack> items) {
@@ -137,9 +140,9 @@ public class TeamManager {
             return;
         }
 
-        invites.put(target.getUniqueId(), team.getTag());
+        invites.put(target.getUniqueId(), team.getName());
         leader.sendMessage(getMessage("zaproszono-gracza", "%player%", target.getName()));
-        target.sendMessage(getMessage("otrzymano-zaproszenie", "%tag%", team.getTag()));
+        target.sendMessage(getMessage("otrzymano-zaproszenie", "%nazwa%", team.getName()));
         setCooldown(leader);
     }
 
@@ -150,8 +153,8 @@ public class TeamManager {
             return;
         }
 
-        String teamTag = invites.get(player.getUniqueId());
-        Team team = teams.get(teamTag.toLowerCase());
+        String teamName = invites.get(player.getUniqueId());
+        Team team = teams.get(teamName.toLowerCase());
 
         if (team == null) {
             player.sendMessage(getMessage("team-nie-istnieje"));
@@ -161,7 +164,7 @@ public class TeamManager {
 
         team.addMember(player.getUniqueId());
         invites.remove(player.getUniqueId());
-        Bukkit.broadcastMessage(getMessage("gracz-dolaczyl-globalnie", "%player%", player.getName(), "%tag%", team.getTag()));
+        Bukkit.broadcastMessage(getMessage("gracz-dolaczyl-globalnie", "%player%", player.getName(), "%nazwa%", team.getName()));
         setCooldown(player);
     }
 
@@ -196,8 +199,8 @@ public class TeamManager {
             return;
         }
 
-        Bukkit.broadcastMessage(getMessage("team-rozwiazany-globalnie", "%tag%", team.getTag()));
-        teams.remove(team.getTag().toLowerCase());
+        Bukkit.broadcastMessage(getMessage("team-rozwiazany-globalnie", "%nazwa%", team.getName()));
+        teams.remove(team.getName().toLowerCase());
     }
 
     public void promotePlayer(Player owner, String targetName) {
@@ -239,8 +242,8 @@ public class TeamManager {
         team.broadcast(getMessage("degrad-lidera", "%player%", target.getName()));
     }
 
-    public void getTeamInfo(Player player, String tag) {
-        Team team = teams.get(tag.toLowerCase());
+    public void getTeamInfo(Player player, String name) {
+        Team team = teams.get(name.toLowerCase());
         if(team == null) {
             player.sendMessage(getMessage("team-nie-istnieje"));
             return;
@@ -249,7 +252,7 @@ public class TeamManager {
         Player owner = Bukkit.getPlayer(team.getOwner());
 
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
-        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eInformacje o teamie: &f" + team.getTag()));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eInformacje o teamie: &f" + team.getName()));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eZalozyciel: &f" + (owner != null ? owner.getName() : "Offline")));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&ePunkty: &f" + team.getPoints()));
 
@@ -262,8 +265,8 @@ public class TeamManager {
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eCzlonkowie:"));
         team.getMembers().forEach(uuid -> {
             PlayerStats stats = playerStatsManager.getPlayerStats(uuid);
-            String name = Bukkit.getOfflinePlayer(uuid).getName();
-            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "  &f- " + name + " &7(Zabojstwa: &a" + stats.getKills() + "&7, Smierci: &c" + stats.getDeaths() + "&7, Pkt: &e" + stats.getPoints() + "&7)"));
+            String memberName = Bukkit.getOfflinePlayer(uuid).getName();
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "  &f- " + memberName + " &7(Zabojstwa: &a" + stats.getKills() + "&7, Smierci: &c" + stats.getDeaths() + "&7, Pkt: &e" + stats.getPoints() + "&7)"));
         });
         
         String pvpStatus = team.isPvpEnabled() ? getMessage("status-pvp-wlaczone") : getMessage("status-pvp-wylaczone");
@@ -297,7 +300,7 @@ public class TeamManager {
         }
 
         team.removeMember(player.getUniqueId());
-        Bukkit.broadcastMessage(getMessage("gracz-opuscil-team-globalnie", "%player%", player.getName(), "%tag%", team.getTag()));
+        Bukkit.broadcastMessage(getMessage("gracz-opuscil-team-globalnie", "%player%", player.getName(), "%nazwa%", team.getName()));
         setCooldown(player);
     }
 
@@ -368,24 +371,33 @@ public class TeamManager {
                 teams.put(key, team);
             }
         });
+        updateTopTeams();
     }
 
-    public Team getTeamByTag(String tag) {
-        return teams.get(tag.toLowerCase());
+    public Team getTeamByName(String name) {
+        return teams.get(name.toLowerCase());
     }
 
     public void showTopTeams(Player player) {
-        List<Team> sortedTeams = teams.values().stream()
-                .sorted(Comparator.comparingInt(Team::getPoints).reversed())
-                .limit(10)
-                .collect(Collectors.toList());
+        List<Team> sortedTeams = getTopTeams();
 
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eTop 10 teamow:"));
         for (int i = 0; i < sortedTeams.size(); i++) {
             Team team = sortedTeams.get(i);
-            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e" + (i + 1) + ". &f" + team.getTag() + " &7- &e" + team.getPoints() + " pkt"));
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e" + (i + 1) + ". &f" + team.getName() + " &7- &e" + team.getPoints() + " pkt"));
         }
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
+    }
+
+    public List<Team> getTopTeams() {
+        return topTeamsCache;
+    }
+
+    public void updateTopTeams() {
+        topTeamsCache = teams.values().stream()
+                .sorted(Comparator.comparingInt(Team::getPoints).reversed())
+                .limit(10)
+                .collect(Collectors.toList());
     }
 }
