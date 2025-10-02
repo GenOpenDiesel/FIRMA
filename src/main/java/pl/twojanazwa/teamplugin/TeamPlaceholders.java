@@ -8,10 +8,12 @@ public class TeamPlaceholders extends PlaceholderExpansion {
 
     private final TeamPlugin plugin;
     private final TeamManager teamManager;
+    private final PlayerStatsManager playerStatsManager;
 
-    public TeamPlaceholders(TeamPlugin plugin, TeamManager teamManager) {
+    public TeamPlaceholders(TeamPlugin plugin, TeamManager teamManager, PlayerStatsManager playerStatsManager) {
         this.plugin = plugin;
         this.teamManager = teamManager;
+        this.playerStatsManager = playerStatsManager;
     }
 
     @Override
@@ -44,6 +46,12 @@ public class TeamPlaceholders extends PlaceholderExpansion {
         if (params.equals("points")) {
             Team team = teamManager.getTeamByPlayer(player);
             return (team != null) ? String.valueOf(team.getPoints()) : "Brak";
+        }
+
+        // %team_player_points%
+        if (params.equals("player_points")) {
+            PlayerStats stats = playerStatsManager.getPlayerStats(player.getUniqueId());
+            return String.valueOf(stats.getPoints());
         }
 
         return null;
