@@ -4,39 +4,52 @@ import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class TeamManager {
 
+    private final TeamPlugin plugin;
     private final Map<String, Team> teams = new HashMap<>();
     private final Map<UUID, String> invites = new HashMap<>();
-    private final double creationCost = 50000.0;
-    private final TeamPlugin plugin;
+    private File teamsFile;
+    private FileConfiguration teamsConfig;
+
 
     public TeamManager(TeamPlugin plugin) {
         this.plugin = plugin;
+        createTeamsFile();
     }
 
-    private String color(String message) {
+    private String getMessage(String path, String... replacements) {
+        String message = plugin.getConfig().getString("messages." + path, "&cWiadomosc nie znaleziona: " + path);
+        for (int i = 0; i < replacements.length; i += 2) {
+            message = message.replace(replacements[i], replacements[i + 1]);
+        }
         return ChatColor.translateAlternateColorCodes('&', message);
     }
 
     public void createTeam(Player player, String tag) {
         if (getTeamByPlayer(player) != null) {
-            player.sendMessage(color("&9Team &8» &7Jestes juz w teamie."));
+            player.sendMessage(getMessage("juz-w-teamie"));
             return;
         }
 
         if (teams.containsKey(tag.toLowerCase())) {
-            player.sendMessage(color("&9Team &8» &7Team o takim tagu juz istnieje."));
+            player.sendMessage(getMessage("tag-zajety"));
             return;
         }
-
+        
+        double creationCost = plugin.getConfig().getDouble("koszt-stworzenia");
         Economy econ = TeamPlugin.getEconomy();
         if (econ.getBalance(player) < creationCost) {
-            player.sendMessage(color("&9Team &8» &7Nie masz wystarczajaco pieniedzy (&e50k&7)."));
+            player.sendMessage(getMessage("brak-pieniedzy", "%cost%", String.valueOf(creationCost)));
             return;
         }
 
@@ -44,39 +57,38 @@ public class TeamManager {
         if (r.transactionSuccess()) {
             Team team = new Team(tag, player.getUniqueId());
             teams.put(tag.toLowerCase(), team);
-            player.sendMessage(color("&9Team &8» &7Stworzyles team o tagu: &e" + tag));
+            player.sendMessage(getMessage("team-stworzony", "%tag%", tag));
         } else {
-            player.sendMessage(color("&9Team &8» &7Wystapil blad podczas pobierania pieniedzy."));
+            player.sendMessage(getMessage("blad-pobierania-pieniedzy"));
         }
     }
 
     public void invitePlayer(Player leader, String targetName) {
         Team team = getTeamByPlayer(leader);
         if (team == null || !team.isLeader(leader.getUniqueId())) {
-            leader.sendMessage(color("&9Team &8» &7Nie jestes liderem teamu."));
+            leader.sendMessage(getMessage("nie-jestes-liderem"));
             return;
         }
 
         Player target = Bukkit.getPlayer(targetName);
         if (target == null || !target.isOnline()) {
-            leader.sendMessage(color("&9Team &8» &7Gracz jest offline."));
+            leader.sendMessage(getMessage("gracz-offline"));
             return;
         }
 
         if (getTeamByPlayer(target) != null) {
-            leader.sendMessage(color("&9Team &8» &7Ten gracz jest juz w innym teamie."));
+            leader.sendMessage(getMessage("gracz-juz-w-teamie"));
             return;
         }
 
         invites.put(target.getUniqueId(), team.getTag());
-        leader.sendMessage(color("&9Team &8» &7Zaproszono gracza &e" + target.getName() + "&7 do teamu."));
-        target.sendMessage(color("&9Team &8» &7Otrzymales zaproszenie do teamu &e" + team.getTag() + "&7."));
-        target.sendMessage(color("&9Team &8» &7Wpisz &e/team akceptuj&7, aby dolaczyc."));
+        leader.sendMessage(getMessage("zaproszono-gracza", "%player%", target.getName()));
+        target.sendMessage(getMessage("otrzymano-zaproszenie", "%tag%", team.getTag()));
     }
-    
+
     public void acceptInvite(Player player) {
         if (!invites.containsKey(player.getUniqueId())) {
-            player.sendMessage(color("&9Team &8» &7Nie masz zadnych zaproszen."));
+            player.sendMessage(getMessage("brak-zaproszen"));
             return;
         }
 
@@ -84,147 +96,149 @@ public class TeamManager {
         Team team = teams.get(teamTag.toLowerCase());
 
         if (team == null) {
-            player.sendMessage(color("&9Team &8» &7Team, do ktorego zostales zaproszony, juz nie istnieje."));
+            player.sendMessage(getMessage("team-nie-istnieje"));
             invites.remove(player.getUniqueId());
             return;
         }
-        
+
         team.addMember(player.getUniqueId());
         invites.remove(player.getUniqueId());
-        player.sendMessage(color("&9Team &8» &7Dolaczyles do teamu &e" + team.getTag() + "&7."));
-        team.broadcast(color("&9Team &8» &7Gracz &e" + player.getName() + " &7dolaczyl do teamu."));
+        player.sendMessage(getMessage("dolaczono-do-teamu", "%tag%", team.getTag()));
+        team.broadcast(getMessage("gracz-dolaczyl", "%player%", player.getName()));
     }
 
     public void kickPlayer(Player leader, String targetName) {
         Team team = getTeamByPlayer(leader);
         if (team == null || !team.isLeader(leader.getUniqueId())) {
-            leader.sendMessage(color("&9Team &8» &7Nie jestes liderem teamu."));
+            leader.sendMessage(getMessage("nie-jestes-liderem"));
             return;
         }
-        
+
         Player target = Bukkit.getPlayer(targetName);
         if (target == null || !team.isMember(target.getUniqueId())) {
-            leader.sendMessage(color("&9Team &8» &7Tego gracza nie ma w Twoim teamie."));
+             leader.sendMessage(getMessage("gracz-nie-w-teamie"));
             return;
         }
 
         if (target.getUniqueId().equals(team.getOwner())) {
-             leader.sendMessage(color("&9Team &8» &7Nie mozesz wyrzucic zalozyciela."));
+             leader.sendMessage(getMessage("nie-mozna-wyrzucic-zalozyciela"));
             return;
         }
 
         team.removeMember(target.getUniqueId());
-        team.broadcast(color("&9Team &8» &7Gracz &e" + target.getName() + "&7 zostal wyrzucony."));
+        team.broadcast(getMessage("gracz-wyrzucony", "%player%", target.getName()));
     }
 
     public void deleteTeam(Player owner) {
         Team team = getTeamByPlayer(owner);
         if (team == null || !team.getOwner().equals(owner.getUniqueId())) {
-            owner.sendMessage(color("&9Team &8» &7Tylko zalozyciel moze usunac team."));
+            owner.sendMessage(getMessage("tylko-zalozyciel-usuniecie"));
             return;
         }
-        
-        team.broadcast(color("&9Team &8» &7Team zostal rozwiazany."));
+
+        team.broadcast(getMessage("team-rozwiazany"));
         teams.remove(team.getTag().toLowerCase());
     }
-    
+
     public void promotePlayer(Player owner, String targetName) {
         Team team = getTeamByPlayer(owner);
         if (team == null || !team.getOwner().equals(owner.getUniqueId())) {
-            owner.sendMessage(color("&9Team &8» &7Tylko zalozyciel moze nadawac lidera."));
+            owner.sendMessage(getMessage("tylko-zalozyciel-lider"));
             return;
         }
 
         Player target = Bukkit.getPlayer(targetName);
         if (target == null || !team.isMember(target.getUniqueId())) {
-            owner.sendMessage(color("&9Team &8» &7Tego gracza nie ma w Twoim teamie."));
+            owner.sendMessage(getMessage("gracz-nie-w-teamie"));
             return;
         }
 
         if(team.isLeader(target.getUniqueId())) {
-            owner.sendMessage(color("&9Team &8» &7Ten gracz jest juz liderem."));
+            owner.sendMessage(getMessage("gracz-juz-liderem"));
             return;
         }
-        
+
         team.addLeader(target.getUniqueId());
-        team.broadcast(color("&9Team &8» &7Gracz &e" + target.getName() + "&7 zostal nowym liderem."));
+        team.broadcast(getMessage("awans-na-lidera", "%player%", target.getName()));
     }
 
     public void demotePlayer(Player owner, String targetName) {
         Team team = getTeamByPlayer(owner);
         if (team == null || !team.getOwner().equals(owner.getUniqueId())) {
-            owner.sendMessage(color("&9Team &8» &7Tylko zalozyciel moze degradowac."));
+            owner.sendMessage(getMessage("tylko-zalozyciel-degrad"));
             return;
         }
 
         Player target = Bukkit.getPlayer(targetName);
         if (target == null || !team.isLeader(target.getUniqueId())) {
-            owner.sendMessage(color("&9Team &8» &7Ten gracz nie jest liderem."));
+            owner.sendMessage(getMessage("gracz-nie-jest-liderem"));
             return;
         }
-        
+
         team.removeLeader(target.getUniqueId());
-        team.broadcast(color("&9Team &8» &7Gracz &e" + target.getName() + "&7 nie jest juz liderem."));
+        team.broadcast(getMessage("degrad-lidera", "%player%", target.getName()));
     }
 
     public void getTeamInfo(Player player, String tag) {
         Team team = teams.get(tag.toLowerCase());
         if(team == null) {
-            player.sendMessage(color("&9Team &8» &7Team o takim tagu nie istnieje."));
+            player.sendMessage(getMessage("team-nie-istnieje"));
             return;
         }
 
         Player owner = Bukkit.getPlayer(team.getOwner());
 
-        player.sendMessage(color("&9&m----------------------------------"));
-        player.sendMessage(color("&eInformacje o teamie: &f" + team.getTag()));
-        player.sendMessage(color("&eZalozyciel: &f" + (owner != null ? owner.getName() : "Offline")));
-        
-        List<String> leaderNames = new ArrayList<>();
-        team.getLeaders().forEach(uuid -> {
-            Player p = Bukkit.getPlayer(uuid);
-            if(p != null) leaderNames.add(p.getName());
-        });
-        player.sendMessage(color("&eLiderzy: &f" + String.join(", ", leaderNames)));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eInformacje o teamie: &f" + team.getTag()));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eZalozyciel: &f" + (owner != null ? owner.getName() : "Offline")));
 
-        List<String> memberNames = new ArrayList<>();
-        team.getMembers().forEach(uuid -> {
-             Player p = Bukkit.getPlayer(uuid);
-             if(p != null && !team.isLeader(uuid) && !team.getOwner().equals(uuid)) memberNames.add(p.getName());
-        });
-        player.sendMessage(color("&eCzlonkowie: &f" + String.join(", ", memberNames)));
-        player.sendMessage(color("&ePVP: " + (team.isPvpEnabled() ? "&aWlaczone" : "&cWylaczone")));
-        player.sendMessage(color("&9&m----------------------------------"));
+        String leaders = team.getLeaders().stream()
+                .map(Bukkit::getOfflinePlayer)
+                .map(p -> p.getName() != null ? p.getName() : "Nieznany")
+                .collect(Collectors.joining(", "));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eLiderzy: &f" + leaders));
+        
+        String members = team.getMembers().stream()
+                .filter(uuid -> !team.isLeader(uuid))
+                .map(Bukkit::getOfflinePlayer)
+                .map(p -> p.getName() != null ? p.getName() : "Nieznany")
+                .collect(Collectors.joining(", "));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eCzlonkowie: &f" + (members.isEmpty() ? "Brak" : members)));
+        
+        String pvpStatus = team.isPvpEnabled() ? getMessage("status-pvp-wlaczone") : getMessage("status-pvp-wylaczone");
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&ePVP: " + pvpStatus));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
     }
-    
+
     public void togglePvp(Player player) {
         Team team = getTeamByPlayer(player);
         if (team == null || !team.isLeader(player.getUniqueId())) {
-             player.sendMessage(color("&9Team &8» &7Nie jestes liderem teamu."));
+             player.sendMessage(getMessage("nie-jestes-liderem"));
             return;
         }
-        
-        team.setPvp(!team.isPvpEnabled());
-        team.broadcast(color("&9Team &8» &7PVP w teamie zostalo " + (team.isPvpEnabled() ? "&awlaczone" : "&cwylaczone") + "&7."));
+
+        team.setPvpEnabled(!team.isPvpEnabled());
+        String pvpStatus = team.isPvpEnabled() ? getMessage("status-pvp-wlaczone") : getMessage("status-pvp-wylaczone");
+        team.broadcast(getMessage("pvp-zmienione", "%status%", pvpStatus));
     }
 
     public void leaveTeam(Player player) {
         Team team = getTeamByPlayer(player);
         if(team == null) {
-            player.sendMessage(color("&9Team &8» &7Nie jestes w zadnym teamie."));
+            player.sendMessage(getMessage("brak-teamu"));
             return;
         }
 
         if(team.getOwner().equals(player.getUniqueId())) {
-            player.sendMessage(color("&9Team &8» &7Nie mozesz opuscic teamu, jestes zalozycielem. Uzyj /team usun."));
+            player.sendMessage(getMessage("zalozyciel-nie-moze-opuscic"));
             return;
         }
-        
+
         team.removeMember(player.getUniqueId());
-        team.broadcast(color("&9Team &8» &7Gracz &e" + player.getName() + " &7opuscil team."));
-        player.sendMessage(color("&9Team &8» &7Opusciles team."));
+        team.broadcast(getMessage("gracz-opuscil-team", "%player%", player.getName()));
+        player.sendMessage(getMessage("opusciles-team"));
     }
-    
+
     public Team getTeamByPlayer(Player player) {
         for (Team team : teams.values()) {
             if (team.isMember(player.getUniqueId())) {
@@ -232,5 +246,42 @@ public class TeamManager {
             }
         }
         return null;
+    }
+    
+    // --- Metody do zapisu i wczytywania ---
+
+    private void createTeamsFile() {
+        teamsFile = new File(plugin.getDataFolder(), "teams.yml");
+        if (!teamsFile.exists()) {
+            try {
+                teamsFile.createNewFile();
+            } catch (IOException e) {
+                plugin.getLogger().severe("Nie mozna stworzyc pliku teams.yml!");
+            }
+        }
+        teamsConfig = YamlConfiguration.loadConfiguration(teamsFile);
+    }
+
+    public void saveTeams() {
+        for(Map.Entry<String, Team> entry : teams.entrySet()){
+            teamsConfig.set("teams." + entry.getKey(), entry.getValue());
+        }
+        try {
+            teamsConfig.save(teamsFile);
+        } catch (IOException e) {
+            plugin.getLogger().severe("Nie mozna zapisac teamow do pliku teams.yml!");
+        }
+    }
+    
+    public void loadTeams() {
+        if (!teamsConfig.isConfigurationSection("teams")) {
+            return;
+        }
+        teamsConfig.getConfigurationSection("teams").getKeys(false).forEach(key -> {
+            Team team = (Team) teamsConfig.get("teams." + key);
+            if (team != null) {
+                teams.put(key, team);
+            }
+        });
     }
 }
