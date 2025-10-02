@@ -7,10 +7,10 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 
 public class PlayerDeathListener implements Listener {
 
-    private final TeamManager teamManager;
+    private final PlayerStatsManager playerStatsManager;
 
-    public PlayerDeathListener(TeamManager teamManager) {
-        this.teamManager = teamManager;
+    public PlayerDeathListener(PlayerStatsManager playerStatsManager) {
+        this.playerStatsManager = playerStatsManager;
     }
 
     @EventHandler
@@ -18,17 +18,15 @@ public class PlayerDeathListener implements Listener {
         Player victim = event.getEntity();
         Player killer = victim.getKiller();
 
-        Team victimTeam = teamManager.getTeamByPlayer(victim);
-        Team killerTeam = (killer != null) ? teamManager.getTeamByPlayer(killer) : null;
+        PlayerStats victimStats = playerStatsManager.getPlayerStats(victim.getUniqueId());
+        victimStats.addDeath();
+        victimStats.removePoints(5);
 
-        if (victimTeam != null) {
-            victimTeam.removePoints(5);
-            victimTeam.getPlayerStats(victim.getUniqueId()).addDeath();
-        }
 
-        if (killerTeam != null) {
-            killerTeam.addPoints(10);
-            killerTeam.getPlayerStats(killer.getUniqueId()).addKill();
+        if (killer != null) {
+            PlayerStats killerStats = playerStatsManager.getPlayerStats(killer.getUniqueId());
+            killerStats.addKill();
+            killerStats.addPoints(10);
         }
     }
 }
