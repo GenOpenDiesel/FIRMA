@@ -56,6 +56,12 @@ public class TeamPlaceholders extends PlaceholderExpansion {
             return String.valueOf(stats.getPoints());
         }
 
+        // Nowy placeholder %team_gracz_punkty%
+        if (params.equals("gracz_punkty")) {
+            PlayerStats stats = playerStatsManager.getPlayerStats(player.getUniqueId());
+            return String.valueOf(stats.getPoints());
+        }
+
         // Placeholders for top teams
         if (params.startsWith("top_name_")) {
             try {
