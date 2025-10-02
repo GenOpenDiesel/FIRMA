@@ -23,9 +23,11 @@ public class TeamManager {
     private final Map<UUID, Long> cooldowns = new HashMap<>();
     private File teamsFile;
     private FileConfiguration teamsConfig;
+    private final PlayerStatsManager playerStatsManager;
 
-    public TeamManager(TeamPlugin plugin) {
+    public TeamManager(TeamPlugin plugin, PlayerStatsManager playerStatsManager) {
         this.plugin = plugin;
+        this.playerStatsManager = playerStatsManager;
         createTeamsFile();
     }
 
@@ -67,12 +69,14 @@ public class TeamManager {
             return;
         }
 
-        if (!isAlphanumeric(tag)) {
+        if (!isAlphanumeric(tag) || tag.length() < 2 || tag.length() > 8) {
             player.sendMessage(getMessage("tag-nieprawidlowy"));
             return;
         }
 
+
         List<ItemStack> requiredItems = new ArrayList<>();
+        List<String> requiredItemsMsg = new ArrayList<>();
         for (String itemString : plugin.getConfig().getStringList("creation-cost.items")) {
             String[] parts = itemString.split(":");
             if (parts.length == 2) {
@@ -80,6 +84,7 @@ public class TeamManager {
                     Material material = Material.valueOf(parts[0].toUpperCase());
                     int amount = Integer.parseInt(parts[1]);
                     requiredItems.add(new ItemStack(material, amount));
+                    requiredItemsMsg.add(amount + "x " + material.name());
                 } catch (IllegalArgumentException e) {
                     plugin.getLogger().warning("Nieprawidłowy materiał w config.yml: " + parts[0]);
                 }
@@ -88,11 +93,12 @@ public class TeamManager {
 
         if (!hasEnoughItems(player, requiredItems)) {
             player.sendMessage(getMessage("brak-przedmiotow"));
+            player.sendMessage(ChatColor.GRAY + "Potrzebujesz: " + String.join(", ", requiredItemsMsg));
             return;
         }
 
         removeItems(player, requiredItems);
-        Team team = new Team(tag, player.getUniqueId());
+        Team team = new Team(tag, player.getUniqueId(), playerStatsManager);
         teams.put(tag.toLowerCase(), team);
         Bukkit.broadcastMessage(getMessage("team-stworzony-globalnie", "%player%", player.getName(), "%tag%", tag));
     }
@@ -255,9 +261,9 @@ public class TeamManager {
         
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eCzlonkowie:"));
         team.getMembers().forEach(uuid -> {
-            PlayerStats stats = team.getPlayerStats(uuid);
+            PlayerStats stats = playerStatsManager.getPlayerStats(uuid);
             String name = Bukkit.getOfflinePlayer(uuid).getName();
-            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "  &f- " + name + " &7(Zabojstwa: &a" + stats.getKills() + "&7, Smierci: &c" + stats.getDeaths() + "&7)"));
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "  &f- " + name + " &7(Zabojstwa: &a" + stats.getKills() + "&7, Smierci: &c" + stats.getDeaths() + "&7, Pkt: &e" + stats.getPoints() + "&7)"));
         });
         
         String pvpStatus = team.isPvpEnabled() ? getMessage("status-pvp-wlaczone") : getMessage("status-pvp-wylaczone");
@@ -358,6 +364,7 @@ public class TeamManager {
         teamsConfig.getConfigurationSection("teams").getKeys(false).forEach(key -> {
             Team team = (Team) teamsConfig.get("teams." + key);
             if (team != null) {
+                team.setPlayerStatsManager(playerStatsManager);
                 teams.put(key, team);
             }
         });
