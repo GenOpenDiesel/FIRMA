@@ -35,7 +35,10 @@ public class TeamPlugin extends JavaPlugin {
         this.teamManager = new TeamManager(this, playerStatsManager);
         teamManager.loadTeams(); // Wczytaj teamy z pliku
 
-        Objects.requireNonNull(this.getCommand("team")).setExecutor(new TeamCommand(teamManager));
+        TeamCommand teamCommand = new TeamCommand(teamManager);
+        Objects.requireNonNull(this.getCommand("team")).setExecutor(teamCommand);
+        Objects.requireNonNull(this.getCommand("team")).setTabCompleter(teamCommand);
+        
         getServer().getPluginManager().registerEvents(new PlayerDeathListener(playerStatsManager), this);
         getServer().getPluginManager().registerEvents(new TeamChatListener(teamManager), this);
 
