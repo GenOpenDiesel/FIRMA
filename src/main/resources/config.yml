@@ -36,3 +36,4 @@ messages:
   gracz-opuscil-team: "&9Team &8» &7Gracz &e%player% &7opuscil team."
   opusciles-team: "&9Team &8» &7Opusciles team."
   poprawne-uzycie: "&9Team &8» &7Poprawne uzycie: &e%usage%"
+  team-chat-format: "&8[&eTeam Chat&8] &a%player%&8: &f%message%"
