@@ -1,0 +1,13 @@
+name: TeamPlugin
+version: '${project.version}'
+main: pl.twojanazwa.teamplugin.TeamPlugin
+api-version: '1.21'
+author: TwojaNazwa
+description: Prosty plugin na teamy.
+depend: [Vault] # Wymagane do działania ekonomii
+
+commands:
+  team:
+    description: Główna komenda do zarządzania teamem.
+    usage: /team <stworz|zapros|akceptuj|wyrzuc|usun|lider|degrad|info|pvp|opusc>
+    aliases: [t]
