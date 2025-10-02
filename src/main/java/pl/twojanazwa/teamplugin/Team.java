@@ -15,11 +15,11 @@ public class Team implements ConfigurationSerializable {
     private final Set<UUID> members;
     private final Set<UUID> leaders;
     private boolean pvpEnabled;
-    private int points;
-    private final Map<UUID, PlayerStats> playerStats;
+    private transient PlayerStatsManager playerStatsManager;
     private Location home;
 
-    public Team(String tag, UUID owner) {
+
+    public Team(String tag, UUID owner, PlayerStatsManager playerStatsManager) {
         this.tag = tag;
         this.owner = owner;
         this.members = new HashSet<>();
@@ -27,9 +27,7 @@ public class Team implements ConfigurationSerializable {
         this.members.add(owner);
         this.leaders.add(owner);
         this.pvpEnabled = true;
-        this.points = 1000; // Domyślne punkty
-        this.playerStats = new HashMap<>();
-        this.playerStats.put(owner, new PlayerStats());
+        this.playerStatsManager = playerStatsManager;
         this.home = null;
     }
 
@@ -41,13 +39,6 @@ public class Team implements ConfigurationSerializable {
         this.members = ((List<String>) map.get("members")).stream().map(UUID::fromString).collect(Collectors.toSet());
         this.leaders = ((List<String>) map.get("leaders")).stream().map(UUID::fromString).collect(Collectors.toSet());
         this.pvpEnabled = (boolean) map.get("pvpEnabled");
-        this.points = (int) map.get("points");
-        this.playerStats = new HashMap<>();
-        if (map.containsKey("playerStats")) {
-            ((Map<String, Object>) map.get("playerStats")).forEach((uuid, statsMap) -> {
-                playerStats.put(UUID.fromString(uuid), new PlayerStats((Map<String, Object>) statsMap));
-            });
-        }
         if (map.containsKey("home")) {
             this.home = (Location) map.get("home");
         }
@@ -61,10 +52,6 @@ public class Team implements ConfigurationSerializable {
         map.put("members", members.stream().map(UUID::toString).collect(Collectors.toList()));
         map.put("leaders", leaders.stream().map(UUID::toString).collect(Collectors.toList()));
         map.put("pvpEnabled", pvpEnabled);
-        map.put("points", points);
-        Map<String, Object> statsMap = new HashMap<>();
-        playerStats.forEach((uuid, stats) -> statsMap.put(uuid.toString(), stats.serialize()));
-        map.put("playerStats", statsMap);
         if (home != null) {
             map.put("home", home);
         }
@@ -79,23 +66,31 @@ public class Team implements ConfigurationSerializable {
     public void setPvpEnabled(boolean pvpEnabled) { this.pvpEnabled = pvpEnabled; }
     public boolean isMember(UUID uuid) { return members.contains(uuid); }
     public boolean isLeader(UUID uuid) { return leaders.contains(uuid); }
-    public int getPoints() { return points; }
-    public void addPoints(int amount) { this.points += amount; }
-    public void removePoints(int amount) { this.points -= amount; }
-    public PlayerStats getPlayerStats(UUID uuid) { return playerStats.get(uuid); }
     public Location getHome() { return home; }
     public void setHome(Location home) { this.home = home; }
+    public void setPlayerStatsManager(PlayerStatsManager playerStatsManager) { this.playerStatsManager = playerStatsManager; }
+
+
+    public int getPoints() {
+        if (members.isEmpty() || playerStatsManager == null) {
+            return 0;
+        }
+        int totalPoints = 0;
+        for (UUID memberId : members) {
+            totalPoints += playerStatsManager.getPlayerStats(memberId).getPoints();
+        }
+        return totalPoints / members.size();
+    }
 
 
     public void addMember(UUID uuid) {
         members.add(uuid);
-        playerStats.put(uuid, new PlayerStats());
+        playerStatsManager.getPlayerStats(uuid);
     }
 
     public void removeMember(UUID uuid) {
         members.remove(uuid);
         leaders.remove(uuid);
-        playerStats.remove(uuid);
     }
 
     public void addLeader(UUID uuid) {
