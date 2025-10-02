@@ -10,7 +10,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class Team implements ConfigurationSerializable {
-    private final String tag;
+    private final String name;
     private final UUID owner;
     private final Set<UUID> members;
     private final Set<UUID> leaders;
@@ -19,8 +19,8 @@ public class Team implements ConfigurationSerializable {
     private Location home;
 
 
-    public Team(String tag, UUID owner, PlayerStatsManager playerStatsManager) {
-        this.tag = tag;
+    public Team(String name, UUID owner, PlayerStatsManager playerStatsManager) {
+        this.name = name;
         this.owner = owner;
         this.members = new HashSet<>();
         this.leaders = new HashSet<>();
@@ -34,7 +34,7 @@ public class Team implements ConfigurationSerializable {
     // Konstruktor do wczytywania danych
     @SuppressWarnings("unchecked")
     public Team(Map<String, Object> map) {
-        this.tag = (String) map.get("tag");
+        this.name = (String) map.get("name");
         this.owner = UUID.fromString((String) map.get("owner"));
         this.members = ((List<String>) map.get("members")).stream().map(UUID::fromString).collect(Collectors.toSet());
         this.leaders = ((List<String>) map.get("leaders")).stream().map(UUID::fromString).collect(Collectors.toSet());
@@ -47,7 +47,7 @@ public class Team implements ConfigurationSerializable {
     @Override
     public @NotNull Map<String, Object> serialize() {
         Map<String, Object> map = new HashMap<>();
-        map.put("tag", tag);
+        map.put("name", name);
         map.put("owner", owner.toString());
         map.put("members", members.stream().map(UUID::toString).collect(Collectors.toList()));
         map.put("leaders", leaders.stream().map(UUID::toString).collect(Collectors.toList()));
@@ -58,7 +58,7 @@ public class Team implements ConfigurationSerializable {
         return map;
     }
 
-    public String getTag() { return tag; }
+    public String getName() { return name; }
     public UUID getOwner() { return owner; }
     public Set<UUID> getMembers() { return members; }
     public Set<UUID> getLeaders() { return leaders; }
