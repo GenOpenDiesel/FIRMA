@@ -10,5 +10,5 @@ softdepend: [PlaceholderAPI] # PlaceholderAPI nie jest wymagane, ale zalecane
 commands:
   team:
     description: Główna komenda do zarządzania teamem.
-    usage: /team <stworz|zapros|akceptuj|wyrzuc|usun|lider|degrad|info|pvp|opusc>
+    usage: /team <stworz|zapros|akceptuj|wyrzuc|usun|lider|degrad|info|pvp|opusc|top>
     aliases: [t]
