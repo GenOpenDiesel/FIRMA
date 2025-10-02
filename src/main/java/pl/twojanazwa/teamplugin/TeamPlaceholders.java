@@ -4,6 +4,8 @@ import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
+
 public class TeamPlaceholders extends PlaceholderExpansion {
 
     private final TeamPlugin plugin;
@@ -54,6 +56,35 @@ public class TeamPlaceholders extends PlaceholderExpansion {
             return String.valueOf(stats.getPoints());
         }
 
-        return null;
+        // Placeholders for top teams
+        if (params.startsWith("top_name_")) {
+            try {
+                int rank = Integer.parseInt(params.substring("top_name_".length()));
+                if (rank > 0 && rank <= 10) {
+                    List<Team> topTeams = teamManager.getTopTeams();
+                    if (topTeams.size() >= rank) {
+                        return topTeams.get(rank - 1).getName();
+                    }
+                }
+            } catch (NumberFormatException e) {
+                // Ignore
+            }
+        }
+
+        if (params.startsWith("top_points_")) {
+            try {
+                int rank = Integer.parseInt(params.substring("top_points_".length()));
+                if (rank > 0 && rank <= 10) {
+                    List<Team> topTeams = teamManager.getTopTeams();
+                    if (topTeams.size() >= rank) {
+                        return String.valueOf(topTeams.get(rank - 1).getPoints());
+                    }
+                }
+            } catch (NumberFormatException e) {
+                // Ignore
+            }
+        }
+
+        return "Brak";
     }
 }
