@@ -44,8 +44,8 @@ public class TeamPlaceholders extends PlaceholderExpansion {
             return "";
         }
 
-        // %team_name%
-        if (params.equals("name")) {
+        // %team_gracz_tag%
+        if (params.equals("gracz_tag")) {
             Team team = teamManager.getTeamByPlayer(player);
             return (team != null) ? team.getName() : "Brak";
         }
