@@ -45,6 +45,13 @@ public class TeamPlugin extends JavaPlugin {
         if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
             new TeamPlaceholders(this, teamManager, playerStatsManager).register();
         }
+
+        // Uruchomienie schedulera do automatycznego zapisu co 10 minut
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+            teamManager.saveTeams();
+            playerStatsManager.saveStats();
+            getLogger().info("Automatycznie zapisano dane teamow i statystyki graczy.");
+        }, 0L, 20L * 60 * 10); // 20L * 60 * 10 = 10 minut
         
         getLogger().info("TeamPlugin zostal wlaczony!");
     }
