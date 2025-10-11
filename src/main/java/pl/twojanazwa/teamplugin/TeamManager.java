@@ -148,27 +148,36 @@ public Map<String, Team> getTeams() {
         setCooldown(leader);
     }
 
-    public void acceptInvite(Player player) {
-        if (checkCooldown(player)) return;
-        if (!invites.containsKey(player.getUniqueId())) {
-            player.sendMessage(getMessage("brak-zaproszen"));
-            return;
-        }
-
-        String teamName = invites.get(player.getUniqueId());
-        Team team = teams.get(teamName.toLowerCase());
-
-        if (team == null) {
-            player.sendMessage(getMessage("team-nie-istnieje"));
-            invites.remove(player.getUniqueId());
-            return;
-        }
-
-        team.addMember(player.getUniqueId());
-        invites.remove(player.getUniqueId());
-        Bukkit.broadcastMessage(getMessage("gracz-dolaczyl-globalnie", "%player%", player.getName(), "%nazwa%", team.getName()));
-        setCooldown(player);
+public void acceptInvite(Player player) {
+    if (checkCooldown(player)) return;
+    if (!invites.containsKey(player.getUniqueId())) {
+        player.sendMessage(getMessage("brak-zaproszen"));
+        return;
     }
+
+    // <-- POCZĄTEK POPRAWKI
+    // Sprawdzenie, czy gracz jest już w jakimś teamie
+    if (getTeamByPlayer(player) != null) {
+        player.sendMessage(getMessage("juz-w-teamie"));
+        invites.remove(player.getUniqueId()); // Usunięcie zaproszenia, aby nie wprowadzało w błąd
+        return;
+    }
+    // <-- KONIEC POPRAWKI
+
+    String teamName = invites.get(player.getUniqueId());
+    Team team = teams.get(teamName.toLowerCase());
+
+    if (team == null) {
+        player.sendMessage(getMessage("team-nie-istnieje"));
+        invites.remove(player.getUniqueId());
+        return;
+    }
+
+    team.addMember(player.getUniqueId());
+    invites.remove(player.getUniqueId());
+    Bukkit.broadcastMessage(getMessage("gracz-dolaczyl-globalnie", "%player%", player.getName(), "%nazwa%", team.getName()));
+    setCooldown(player);
+}
 
     public void kickPlayer(Player leader, String targetName) {
         if (checkCooldown(leader)) return;
