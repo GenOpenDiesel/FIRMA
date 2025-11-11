@@ -34,4 +34,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: TeamPlugin
-        path: target/teamplugin-1.0-SNAPSHOT.jar
+        path: target/teamplugin-1.1-SNAPSHOT.jar
