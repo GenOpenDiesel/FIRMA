@@ -365,4 +365,121 @@ public class TeamManager {
 
     public void leaveTeam(Player player) {
         if (checkCooldown(player)) return;
-        Team team = getTeamByPlayer(
+        Team team = getTeamByPlayer(player);
+        if(team == null) {
+            player.sendMessage(getMessage("brak-teamu"));
+            return;
+        }
+
+        if(team.getOwner().equals(player.getUniqueId())) {
+            player.sendMessage(getMessage("zalozyciel-nie-moze-opuscic"));
+            return;
+        }
+
+        team.removeMember(player.getUniqueId());
+        Bukkit.broadcastMessage(getMessage("gracz-opuscil-team-globalnie", "%player%", player.getName(), "%nazwa%", team.getName()));
+        setCooldown(player);
+    }
+
+    public void setHome(Player player) {
+        Team team = getTeamByPlayer(player);
+        if (team == null || !team.isLeader(player.getUniqueId())) {
+            player.sendMessage(getMessage("nie-jestes-liderem"));
+            return;
+        }
+        team.setHome(player.getLocation());
+        player.sendMessage(getMessage("ustawiono-dom"));
+    }
+
+    public void teleportHome(Player player) {
+        Team team = getTeamByPlayer(player);
+        if (team == null) {
+            player.sendMessage(getMessage("brak-teamu"));
+            return;
+        }
+        if (team.getHome() == null) {
+            player.sendMessage(getMessage("dom-nie-ustawiony"));
+            return;
+        }
+        player.teleport(team.getHome());
+        player.sendMessage(getMessage("teleportowano-do-domu"));
+    }
+
+    public Team getTeamByPlayer(Player player) {
+        return getTeamByPlayer(player.getUniqueId());
+    }
+
+    // Przeciążenie metody dla OfflinePlayer / UUID
+    public Team getTeamByPlayer(UUID uuid) {
+        for (Team team : teams.values()) {
+            if (team.isMember(uuid)) {
+                return team;
+            }
+        }
+        return null;
+    }
+    
+    private void createTeamsFile() {
+        teamsFile = new File(plugin.getDataFolder(), "teams.yml");
+        if (!teamsFile.exists()) {
+            try {
+                teamsFile.createNewFile();
+            } catch (IOException e) {
+                plugin.getLogger().severe("Nie mozna stworzyc pliku teams.yml!");
+            }
+        }
+        teamsConfig = YamlConfiguration.loadConfiguration(teamsFile);
+    }
+
+    public void saveTeams() {
+        for(Map.Entry<String, Team> entry : teams.entrySet()){
+            teamsConfig.set("teams." + entry.getKey(), entry.getValue());
+        }
+        try {
+            teamsConfig.save(teamsFile);
+        } catch (IOException e) {
+            plugin.getLogger().severe("Nie mozna zapisac teamow do pliku teams.yml!");
+        }
+    }
+    
+    public void loadTeams() {
+        if (!teamsConfig.isConfigurationSection("teams")) {
+            return;
+        }
+        teamsConfig.getConfigurationSection("teams").getKeys(false).forEach(key -> {
+            Team team = (Team) teamsConfig.get("teams." + key);
+            if (team != null) {
+                team.setPlayerStatsManager(playerStatsManager);
+                teams.put(key, team);
+            }
+        });
+        updateTopTeams();
+    }
+
+    public Team getTeamByName(String name) {
+        return teams.get(name.toLowerCase());
+    }
+
+    public void showTopTeams(Player player) {
+        List<Team> sortedTeams = getTopTeams();
+
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&eTop 10 teamow:"));
+        for (int i = 0; i < sortedTeams.size(); i++) {
+            Team team = sortedTeams.get(i);
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e" + (i + 1) + ". &f" + team.getName() + " &7- &e" + team.getPoints() + " pkt"));
+        }
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
+    }
+
+    public List<Team> getTopTeams() {
+        return topTeamsCache;
+    }
+
+    public void updateTopTeams() {
+        topTeamsCache = teams.values().stream()
+                .sorted(Comparator.comparingInt(Team::getPoints).reversed())
+                .limit(10)
+                .collect(Collectors.toList());
+    }
+}
