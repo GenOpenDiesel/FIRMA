@@ -22,15 +22,25 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
         this.teamManager = teamManager;
     }
 
-    private void sendUsage(Player player, String usage) {
+    private void sendUsage(CommandSender sender, String usage) {
         String message = teamManager.plugin.getConfig().getString("messages.poprawne-uzycie", "&9Team &8» &7Poprawne uzycie: &e%usage%");
-        player.sendMessage(ChatColor.translateAlternateColorCodes('&', message.replace("%usage%", usage)));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', message.replace("%usage%", usage)));
     }
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+        // Pozwalamy na użycie komendy adminwyrzuc przez konsolę, reszta tylko dla gracza
+        if (args.length > 0 && args[0].equalsIgnoreCase("adminwyrzuc")) {
+            if (args.length < 2) {
+                sendUsage(sender, "/team adminwyrzuc <nick>");
+                return true;
+            }
+            teamManager.forceKickPlayer(sender, args[1]);
+            return true;
+        }
+
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Ta komenda moze byc uzyta tylko przez gracza.");
+            sender.sendMessage("Ta komenda moze byc uzyta tylko przez gracza (oprocz /team adminwyrzuc).");
             return true;
         }
 
@@ -133,13 +143,20 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team top &7- Wyswietla top 10 teamow."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team sethome &7- Ustawia dom teamu."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team home &7- Teleportuje do domu teamu."));
+        if (player.hasPermission("teamplugin.admin")) {
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c/team adminwyrzuc <nick> &7- Wymusza wyrzucenie gracza."));
+        }
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
     }
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("stworz", "zapros", "akceptuj", "wyrzuc", "usun", "lider", "degrad", "info", "pvp", "opusc", "top", "sethome", "home").stream()
+            List<String> completions = new ArrayList<>(Arrays.asList("stworz", "zapros", "akceptuj", "wyrzuc", "usun", "lider", "degrad", "info", "pvp", "opusc", "top", "sethome", "home"));
+            if (sender.hasPermission("teamplugin.admin")) {
+                completions.add("adminwyrzuc");
+            }
+            return completions.stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         } else if (args.length == 2) {
@@ -148,6 +165,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
                 case "wyrzuc":
                 case "lider":
                 case "degrad":
+                case "adminwyrzuc":
                     return Bukkit.getOnlinePlayers().stream()
                             .map(Player::getName)
                             .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
