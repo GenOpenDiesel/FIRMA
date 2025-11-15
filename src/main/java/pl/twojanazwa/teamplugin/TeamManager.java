@@ -432,6 +432,9 @@ public class TeamManager {
     }
 
     public void saveTeams() {
+        // FIX: Najpierw czyścimy sekcję teams, aby usunąć te, które zostały skasowane
+        teamsConfig.set("teams", null);
+
         for(Map.Entry<String, Team> entry : teams.entrySet()){
             teamsConfig.set("teams." + entry.getKey(), entry.getValue());
         }
