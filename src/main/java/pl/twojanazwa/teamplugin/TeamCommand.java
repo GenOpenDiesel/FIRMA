@@ -29,7 +29,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        // Pozwalamy na użycie komendy adminwyrzuc przez konsolę, reszta tylko dla gracza
+        // KOMENDA ADMINA: WYRZUCANIE GRACZA
         if (args.length > 0 && args[0].equalsIgnoreCase("adminwyrzuc")) {
             if (args.length < 2) {
                 sendUsage(sender, "/team adminwyrzuc <nick>");
@@ -39,8 +39,18 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        // KOMENDA ADMINA: USUWANIE TEAMU
+        if (args.length > 0 && args[0].equalsIgnoreCase("adminusun")) {
+            if (args.length < 2) {
+                sendUsage(sender, "/team adminusun <nazwa_teamu>");
+                return true;
+            }
+            teamManager.forceDeleteTeam(sender, args[1]);
+            return true;
+        }
+
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Ta komenda moze byc uzyta tylko przez gracza (oprocz /team adminwyrzuc).");
+            sender.sendMessage("Ta komenda moze byc uzyta tylko przez gracza (oprocz /team adminwyrzuc i /team adminusun).");
             return true;
         }
 
@@ -145,6 +155,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team home &7- Teleportuje do domu teamu."));
         if (player.hasPermission("teamplugin.admin")) {
             player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c/team adminwyrzuc <nick> &7- Wymusza wyrzucenie gracza."));
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c/team adminusun <nazwa> &7- Wymusza usuniecie teamu."));
         }
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&m----------------------------------"));
     }
@@ -155,6 +166,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
             List<String> completions = new ArrayList<>(Arrays.asList("stworz", "zapros", "akceptuj", "wyrzuc", "usun", "lider", "degrad", "info", "pvp", "opusc", "top", "sethome", "home"));
             if (sender.hasPermission("teamplugin.admin")) {
                 completions.add("adminwyrzuc");
+                completions.add("adminusun");
             }
             return completions.stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
@@ -171,6 +183,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
                             .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
                             .collect(Collectors.toList());
                 case "info":
+                case "adminusun":
                     return teamManager.getTeams().keySet().stream()
                             .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
                             .collect(Collectors.toList());
