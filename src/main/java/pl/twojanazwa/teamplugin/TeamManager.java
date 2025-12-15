@@ -232,7 +232,7 @@ public class TeamManager {
         setCooldown(leader);
     }
 
-    // NOWA FUNKCJA DLA ADMINA
+    // FUNKCJA DLA ADMINA - WYRZUCANIE GRACZA
     public void forceKickPlayer(CommandSender sender, String targetName) {
         if (!sender.hasPermission("teamplugin.admin")) {
             sender.sendMessage(ChatColor.RED + "Brak uprawnien! (teamplugin.admin)");
@@ -266,6 +266,24 @@ public class TeamManager {
         targetTeam.removeMember(targetUUID);
         targetTeam.broadcast(getMessage("gracz-wyrzucony", "%player%", realName));
         sender.sendMessage(ChatColor.GREEN + "ADMIN: Wyrzucono gracza " + realName + " z teamu " + targetTeam.getName());
+    }
+
+    // NOWA FUNKCJA DLA ADMINA - USUWANIE TEAMU
+    public void forceDeleteTeam(CommandSender sender, String teamName) {
+        if (!sender.hasPermission("teamplugin.admin")) {
+            sender.sendMessage(ChatColor.RED + "Brak uprawnien! (teamplugin.admin)");
+            return;
+        }
+
+        Team team = teams.get(teamName.toLowerCase());
+        if (team == null) {
+            sender.sendMessage(ChatColor.RED + "Team o nazwie " + teamName + " nie istnieje.");
+            return;
+        }
+
+        Bukkit.broadcastMessage(getMessage("team-rozwiazany-globalnie", "%nazwa%", team.getName()));
+        teams.remove(team.getName().toLowerCase());
+        sender.sendMessage(ChatColor.GREEN + "ADMIN: Usunieto team " + team.getName());
     }
 
     public void deleteTeam(Player owner) {
