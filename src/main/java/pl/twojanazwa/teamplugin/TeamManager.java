@@ -20,6 +20,9 @@ public class TeamManager {
 
     public final TeamPlugin plugin;
     private final Map<String, Team> teams = new HashMap<>();
+    // Cache dla szybkiego dostępu (Wydajność: O(1))
+    private final Map<UUID, Team> playerTeamCache = new HashMap<>();
+    
     private final Map<UUID, String> invites = new HashMap<>();
     private final Map<UUID, Long> cooldowns = new HashMap<>();
     private File teamsFile;
@@ -108,6 +111,8 @@ public class TeamManager {
         removeItems(player, requiredItems);
         Team team = new Team(name, player.getUniqueId(), playerStatsManager);
         teams.put(name.toLowerCase(), team);
+        playerTeamCache.put(player.getUniqueId(), team); // Aktualizacja cache
+        
         Bukkit.broadcastMessage(getMessage("team-stworzony-globalnie", "%player%", player.getName(), "%nazwa%", name));
     }
 
@@ -174,6 +179,7 @@ public class TeamManager {
         }
 
         team.addMember(player.getUniqueId());
+        playerTeamCache.put(player.getUniqueId(), team); // Aktualizacja cache
         invites.remove(player.getUniqueId());
         Bukkit.broadcastMessage(getMessage("gracz-dolaczyl-globalnie", "%player%", player.getName(), "%nazwa%", team.getName()));
         setCooldown(player);
@@ -190,14 +196,11 @@ public class TeamManager {
         UUID targetUUID = null;
         String targetRealName = targetName;
 
-        // 1. Sprawdzamy czy gracz jest online (najdokładniejsze)
         Player targetOnline = Bukkit.getPlayer(targetName);
         if (targetOnline != null) {
             targetUUID = targetOnline.getUniqueId();
             targetRealName = targetOnline.getName();
         } else {
-            // 2. Jeśli offline, szukamy go na liście członków teamu po nicku
-            // To naprawia problem z wyrzucaniem graczy offline, których Bukkit nie może znaleźć
             for (UUID memberId : team.getMembers()) {
                 OfflinePlayer offMember = Bukkit.getOfflinePlayer(memberId);
                 if (offMember.getName() != null && offMember.getName().equalsIgnoreCase(targetName)) {
@@ -207,7 +210,6 @@ public class TeamManager {
                 }
             }
             
-            // 3. Ostateczny fallback (standardowe pobieranie)
             if (targetUUID == null) {
                 OfflinePlayer offTarget = Bukkit.getOfflinePlayer(targetName);
                 if (team.isMember(offTarget.getUniqueId())) {
@@ -228,11 +230,11 @@ public class TeamManager {
         }
 
         team.removeMember(targetUUID);
+        playerTeamCache.remove(targetUUID); // Aktualizacja cache
         team.broadcast(getMessage("gracz-wyrzucony", "%player%", targetRealName));
         setCooldown(leader);
     }
 
-    // FUNKCJA DLA ADMINA - WYRZUCANIE GRACZA
     public void forceKickPlayer(CommandSender sender, String targetName) {
         if (!sender.hasPermission("teamplugin.admin")) {
             sender.sendMessage(ChatColor.RED + "Brak uprawnien! (teamplugin.admin)");
@@ -243,11 +245,9 @@ public class TeamManager {
         UUID targetUUID = null;
         String realName = targetName;
 
-        // Szukamy gracza we wszystkich teamach
         for (Team t : teams.values()) {
             for (UUID memberId : t.getMembers()) {
                 OfflinePlayer off = Bukkit.getOfflinePlayer(memberId);
-                // Sprawdzamy nick (działa dla offline i online)
                 if (off.getName() != null && off.getName().equalsIgnoreCase(targetName)) {
                     targetTeam = t;
                     targetUUID = memberId;
@@ -264,11 +264,11 @@ public class TeamManager {
         }
 
         targetTeam.removeMember(targetUUID);
+        playerTeamCache.remove(targetUUID); // Aktualizacja cache
         targetTeam.broadcast(getMessage("gracz-wyrzucony", "%player%", realName));
         sender.sendMessage(ChatColor.GREEN + "ADMIN: Wyrzucono gracza " + realName + " z teamu " + targetTeam.getName());
     }
 
-    // NOWA FUNKCJA DLA ADMINA - USUWANIE TEAMU
     public void forceDeleteTeam(CommandSender sender, String teamName) {
         if (!sender.hasPermission("teamplugin.admin")) {
             sender.sendMessage(ChatColor.RED + "Brak uprawnien! (teamplugin.admin)");
@@ -282,6 +282,12 @@ public class TeamManager {
         }
 
         Bukkit.broadcastMessage(getMessage("team-rozwiazany-globalnie", "%nazwa%", team.getName()));
+        
+        // Wyczyszczenie graczy z cache przed usunięciem
+        for(UUID memberId : team.getMembers()) {
+            playerTeamCache.remove(memberId);
+        }
+        
         teams.remove(team.getName().toLowerCase());
         sender.sendMessage(ChatColor.GREEN + "ADMIN: Usunieto team " + team.getName());
     }
@@ -294,6 +300,12 @@ public class TeamManager {
         }
 
         Bukkit.broadcastMessage(getMessage("team-rozwiazany-globalnie", "%nazwa%", team.getName()));
+        
+        // Wyczyszczenie graczy z cache przed usunięciem
+        for(UUID memberId : team.getMembers()) {
+            playerTeamCache.remove(memberId);
+        }
+        
         teams.remove(team.getName().toLowerCase());
     }
 
@@ -395,6 +407,7 @@ public class TeamManager {
         }
 
         team.removeMember(player.getUniqueId());
+        playerTeamCache.remove(player.getUniqueId()); // Aktualizacja cache
         Bukkit.broadcastMessage(getMessage("gracz-opuscil-team-globalnie", "%player%", player.getName(), "%nazwa%", team.getName()));
         setCooldown(player);
     }
@@ -427,14 +440,9 @@ public class TeamManager {
         return getTeamByPlayer(player.getUniqueId());
     }
 
-    // Przeciążenie metody dla OfflinePlayer / UUID
+    // ZOPTAMALIZOWANA METODA - pobiera z cache O(1)
     public Team getTeamByPlayer(UUID uuid) {
-        for (Team team : teams.values()) {
-            if (team.isMember(uuid)) {
-                return team;
-            }
-        }
-        return null;
+        return playerTeamCache.get(uuid);
     }
     
     private void createTeamsFile() {
@@ -450,7 +458,6 @@ public class TeamManager {
     }
 
     public void saveTeams() {
-        // FIX: Najpierw czyścimy sekcję teams, aby usunąć te, które zostały skasowane
         teamsConfig.set("teams", null);
 
         for(Map.Entry<String, Team> entry : teams.entrySet()){
@@ -467,11 +474,19 @@ public class TeamManager {
         if (!teamsConfig.isConfigurationSection("teams")) {
             return;
         }
+        
+        playerTeamCache.clear(); // Wyczyszczenie cache przed wczytaniem
+        
         teamsConfig.getConfigurationSection("teams").getKeys(false).forEach(key -> {
             Team team = (Team) teamsConfig.get("teams." + key);
             if (team != null) {
                 team.setPlayerStatsManager(playerStatsManager);
                 teams.put(key, team);
+                
+                // Wypełnienie cache członkami teamu
+                for(UUID memberId : team.getMembers()) {
+                    playerTeamCache.put(memberId, team);
+                }
             }
         });
         updateTopTeams();
