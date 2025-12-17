@@ -8,6 +8,7 @@ import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.ItemStack;
@@ -27,7 +28,8 @@ public class PlayerDeathListener implements Listener {
         this.playerStatsManager = playerStatsManager;
     }
 
-    @EventHandler
+    // Ustawienie priorytetu na HIGHEST, aby plugin "miał ostatnie słowo" i nie gryzł się z innymi
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player victim = event.getEntity();
         Player killer = victim.getKiller();
