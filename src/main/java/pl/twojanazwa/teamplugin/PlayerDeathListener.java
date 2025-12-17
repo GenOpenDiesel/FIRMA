@@ -28,7 +28,6 @@ public class PlayerDeathListener implements Listener {
         this.playerStatsManager = playerStatsManager;
     }
 
-    // Ustawienie priorytetu na HIGHEST, aby plugin "miał ostatnie słowo" i nie gryzł się z innymi
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player victim = event.getEntity();
@@ -58,7 +57,7 @@ public class PlayerDeathListener implements Listener {
             killerStats.addKill();
             killerStats.addPoints(10);
 
-            // === TWORZENIE WIADOMOŚCI ADVENTURE API ===
+            // === TWORZENIE WIADOMOŚCI O ŚMIERCI (GLOBALNEJ) ===
             
             ItemStack weaponItem = killer.getInventory().getItemInMainHand();
             Component weaponNameComp;
@@ -67,10 +66,8 @@ public class PlayerDeathListener implements Listener {
             if (weaponItem.getType() != Material.AIR) {
                 ItemMeta meta = weaponItem.getItemMeta();
                 if (meta != null && meta.hasDisplayName()) {
-                    // Jeśli przedmiot ma własną nazwę (np. z kowadła), konwertujemy ją na Component
                     weaponNameComp = LegacyComponentSerializer.legacyAmpersand().deserialize(meta.getDisplayName());
                 } else {
-                    // Jeśli nie ma nazwy, używamy klucza tłumaczenia (automatyczne tłumaczenie klienta)
                     weaponNameComp = Component.translatable(weaponItem.getType().getTranslationKey());
                 }
             } else {
@@ -82,7 +79,7 @@ public class PlayerDeathListener implements Listener {
 
             // Budowanie treści Hovera (Dymka)
             Component hoverContent = Component.text("Uzyta bron: ", NamedTextColor.GRAY)
-                    .append(weaponNameComp.color(NamedTextColor.WHITE)); // W dymku nazwa na biało
+                    .append(weaponNameComp.color(NamedTextColor.WHITE));
 
             Map<Enchantment, Integer> enchants = weaponItem.getEnchantments();
             if (!enchants.isEmpty()) {
@@ -92,7 +89,6 @@ public class PlayerDeathListener implements Listener {
                 for (Map.Entry<Enchantment, Integer> entry : enchants.entrySet()) {
                     hoverContent = hoverContent.append(Component.newline())
                             .append(Component.text("- ", NamedTextColor.DARK_GRAY))
-                            // Translatable Component dla nazwy enchantu (np. "Ostrosc" / "Sharpness")
                             .append(Component.translatable(entry.getKey().translationKey()).color(NamedTextColor.YELLOW))
                             .append(Component.text(" " + entry.getValue(), NamedTextColor.YELLOW));
                 }
@@ -101,28 +97,22 @@ public class PlayerDeathListener implements Listener {
             // Dodanie zdarzenia Hover do komponentu nazwy broni
             Component finalWeaponComponent = weaponNameComp.hoverEvent(HoverEvent.showText(hoverContent));
 
-            // Prefiks wiadomości
-            Component prefix = Component.text("Team ", NamedTextColor.BLUE)
-                    .append(Component.text("» ", NamedTextColor.DARK_GRAY));
-
-            // Wiadomość dla zabójcy
-            Component killerMsg = prefix.append(Component.text("Zabiles gracza ", NamedTextColor.GRAY))
-                    .append(Component.text(victim.getName(), NamedTextColor.YELLOW))
-                    .append(Component.text(" (+10 pkt). Bron: ", NamedTextColor.GRAY))
+            // Budowanie finalnej wiadomości deathMessage
+            // Format: 🗡 <ofiara>[-5pkt] został zabity przez <zabójca>[+10pkt] używając <broń>
+            Component deathMessage = Component.text("🗡 ", NamedTextColor.DARK_RED)
+                    .append(Component.text(victim.getName(), NamedTextColor.RED))
+                    .append(Component.text("[-5pkt]", NamedTextColor.RED))
+                    .append(Component.text(" został zabity przez ", NamedTextColor.GRAY))
+                    .append(Component.text(killer.getName(), NamedTextColor.GREEN))
+                    .append(Component.text("[+10pkt]", NamedTextColor.GREEN))
+                    .append(Component.text(" używając ", NamedTextColor.GRAY))
                     .append(finalWeaponComponent);
 
-            // Wiadomość dla ofiary
-            Component victimMsg = prefix.append(Component.text("Zostales zabity przez ", NamedTextColor.GRAY))
-                    .append(Component.text(killer.getName(), NamedTextColor.YELLOW))
-                    .append(Component.text(" (-5 pkt). Bron: ", NamedTextColor.GRAY))
-                    .append(finalWeaponComponent);
-
-            // Wysłanie wiadomości (Paper API)
-            killer.sendMessage(killerMsg);
-            victim.sendMessage(victimMsg);
+            // Ustawienie wiadomości śmierci (podmienia domyślną wiadomość serwera)
+            event.deathMessage(deathMessage);
 
         } else {
-            // Śmierć inna (PvE, upadek itp.) - tylko strata punktów
+            // Śmierć inna (PvE, upadek itp.) - tylko strata punktów, brak zmiany wiadomości (zostaje domyślna)
             victimStats.removePoints(5);
         }
     }
