@@ -44,20 +44,32 @@ public class PlayerDeathListener implements Listener {
 
             long lastKillTime = victimKillHistory.getOrDefault(victim.getUniqueId(), 0L);
 
+            int pointsToDeduct = 5;
+            int pointsToAdd = 10;
+
             // Zabezpieczenie: 30 minut cooldownu na tego samego gracza
             if (currentTime - lastKillTime < TimeUnit.MINUTES.toMillis(30)) {
-                return;
+                // Jeśli jest cooldown: zerujemy punkty, ale kod wykonuje się dalej (wiadomość)
+                pointsToDeduct = 0;
+                pointsToAdd = 0;
+            } else {
+                // Jeśli nie ma cooldownu: aktualizujemy czas ostatniego zabicia
+                victimKillHistory.put(victim.getUniqueId(), currentTime);
             }
 
-            // Aktualizacja czasu i statystyk
-            victimKillHistory.put(victim.getUniqueId(), currentTime);
-            victimStats.removePoints(5);
+            // Aktualizacja statystyk ofiary
+            if (pointsToDeduct > 0) {
+                victimStats.removePoints(pointsToDeduct);
+            }
             
+            // Aktualizacja statystyk zabójcy
             PlayerStats killerStats = playerStatsManager.getPlayerStats(killer.getUniqueId());
             killerStats.addKill();
-            killerStats.addPoints(10);
+            if (pointsToAdd > 0) {
+                killerStats.addPoints(pointsToAdd);
+            }
 
-            // === TWORZENIE WIADOMOŚCI O ŚMIERCI (GLOBALNEJ) ===
+            // === TWORZENIE WIADOMOŚCI O ŚMIERCI (GLOBALNEJ) - ADVENTURE ===
             
             ItemStack weaponItem = killer.getInventory().getItemInMainHand();
             Component weaponNameComp;
@@ -98,13 +110,13 @@ public class PlayerDeathListener implements Listener {
             Component finalWeaponComponent = weaponNameComp.hoverEvent(HoverEvent.showText(hoverContent));
 
             // Budowanie finalnej wiadomości deathMessage
-            // Format: 🗡 <ofiara>[-5pkt] został zabity przez <zabójca>[+10pkt] używając <broń>
+            // Format: 🗡 <ofiara>[-XPkt] został zabity przez <zabójca>[+XPkt] używając <broń>
             Component deathMessage = Component.text("🗡 ", NamedTextColor.DARK_RED)
                     .append(Component.text(victim.getName(), NamedTextColor.RED))
-                    .append(Component.text("[-5pkt]", NamedTextColor.RED))
+                    .append(Component.text("[-" + pointsToDeduct + "pkt]", NamedTextColor.RED))
                     .append(Component.text(" został zabity przez ", NamedTextColor.GRAY))
                     .append(Component.text(killer.getName(), NamedTextColor.GREEN))
-                    .append(Component.text("[+10pkt]", NamedTextColor.GREEN))
+                    .append(Component.text("[+" + pointsToAdd + "pkt]", NamedTextColor.GREEN))
                     .append(Component.text(" używając ", NamedTextColor.GRAY))
                     .append(finalWeaponComponent);
 
