@@ -125,9 +125,17 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
                 teamManager.showTopTeams(player);
                 break;
             case "sethome":
+                if (!player.hasPermission("teamplugin.home")) {
+                    player.sendMessage(ChatColor.RED + "Brak uprawnien! (teamplugin.home)");
+                    return true;
+                }
                 teamManager.setHome(player);
                 break;
             case "home":
+                if (!player.hasPermission("teamplugin.home")) {
+                    player.sendMessage(ChatColor.RED + "Brak uprawnien! (teamplugin.home)");
+                    return true;
+                }
                 teamManager.teleportHome(player);
                 break;
             default:
@@ -151,8 +159,12 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team pvp &7- Wlacza/wylacza pvp w teamie."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team opusc &7- Opuszcza obecny team."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team top &7- Wyswietla top 10 teamow."));
-        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team sethome &7- Ustawia dom teamu."));
-        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team home &7- Teleportuje do domu teamu."));
+        
+        if (player.hasPermission("teamplugin.home")) {
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team sethome &7- Ustawia dom teamu."));
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team home &7- Teleportuje do domu teamu."));
+        }
+        
         if (player.hasPermission("teamplugin.admin")) {
             player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c/team adminwyrzuc <nick> &7- Wymusza wyrzucenie gracza."));
             player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c/team adminusun <nazwa> &7- Wymusza usuniecie teamu."));
@@ -163,7 +175,13 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            List<String> completions = new ArrayList<>(Arrays.asList("stworz", "zapros", "akceptuj", "wyrzuc", "usun", "lider", "degrad", "info", "pvp", "opusc", "top", "sethome", "home"));
+            List<String> completions = new ArrayList<>(Arrays.asList("stworz", "zapros", "akceptuj", "wyrzuc", "usun", "lider", "degrad", "info", "pvp", "opusc", "top"));
+            
+            if (sender.hasPermission("teamplugin.home")) {
+                completions.add("sethome");
+                completions.add("home");
+            }
+            
             if (sender.hasPermission("teamplugin.admin")) {
                 completions.add("adminwyrzuc");
                 completions.add("adminusun");
