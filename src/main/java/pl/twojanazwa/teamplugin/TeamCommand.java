@@ -125,15 +125,15 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
                 teamManager.showTopTeams(player);
                 break;
             case "sethome":
-                if (!player.hasPermission("teamplugin.home")) {
-                    player.sendMessage(ChatColor.RED + "Brak uprawnien! (teamplugin.home)");
+                if (!player.hasPermission("team.home")) {
+                    player.sendMessage(ChatColor.RED + "Brak uprawnien! (team.home)");
                     return true;
                 }
                 teamManager.setHome(player);
                 break;
             case "home":
-                if (!player.hasPermission("teamplugin.home")) {
-                    player.sendMessage(ChatColor.RED + "Brak uprawnien! (teamplugin.home)");
+                if (!player.hasPermission("team.home")) {
+                    player.sendMessage(ChatColor.RED + "Brak uprawnien! (team.home)");
                     return true;
                 }
                 teamManager.teleportHome(player);
@@ -160,7 +160,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team opusc &7- Opuszcza obecny team."));
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team top &7- Wyswietla top 10 teamow."));
         
-        if (player.hasPermission("teamplugin.home")) {
+        if (player.hasPermission("team.home")) {
             player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team sethome &7- Ustawia dom teamu."));
             player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e/team home &7- Teleportuje do domu teamu."));
         }
@@ -177,7 +177,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             List<String> completions = new ArrayList<>(Arrays.asList("stworz", "zapros", "akceptuj", "wyrzuc", "usun", "lider", "degrad", "info", "pvp", "opusc", "top"));
             
-            if (sender.hasPermission("teamplugin.home")) {
+            if (sender.hasPermission("team.home")) {
                 completions.add("sethome");
                 completions.add("home");
             }
