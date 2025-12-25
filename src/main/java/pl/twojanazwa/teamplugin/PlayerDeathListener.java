@@ -78,20 +78,29 @@ public class PlayerDeathListener implements Listener {
             if (weaponItem.getType() != Material.AIR) {
                 ItemMeta meta = weaponItem.getItemMeta();
                 if (meta != null && meta.hasDisplayName()) {
-                    weaponNameComp = LegacyComponentSerializer.legacyAmpersand().deserialize(meta.getDisplayName());
+                    // ZMIANA: Pobieramy Component bezpośrednio z meta, aby zachować kolory Hex/RGB
+                    weaponNameComp = meta.displayName();
+                    
+                    // Fallback gdyby displayName zwrócił null (rzadki przypadek przy hasDisplayName=true)
+                    if (weaponNameComp == null) {
+                         weaponNameComp = LegacyComponentSerializer.legacySection().deserialize(meta.getDisplayName());
+                    }
                 } else {
-                    weaponNameComp = Component.translatable(weaponItem.getType().getTranslationKey());
+                    // Brak własnej nazwy -> używamy nazwy przedmiotu i kolorujemy na AQUA
+                    weaponNameComp = Component.translatable(weaponItem.getType().getTranslationKey())
+                            .color(NamedTextColor.AQUA);
                 }
             } else {
-                weaponNameComp = Component.text("Reka");
+                // Pusta ręka -> "Reka" na AQUA
+                weaponNameComp = Component.text("Reka").color(NamedTextColor.AQUA);
             }
             
-            // Kolor nazwy broni na turkusowy
-            weaponNameComp = weaponNameComp.color(NamedTextColor.AQUA);
+            // USUNIĘTO: weaponNameComp = weaponNameComp.color(NamedTextColor.AQUA); 
+            // Dzięki temu customowe kolory (Hex) nie są nadpisywane.
 
             // Budowanie treści Hovera (Dymka)
             Component hoverContent = Component.text("Uzyta bron: ", NamedTextColor.GRAY)
-                    .append(weaponNameComp.color(NamedTextColor.WHITE));
+                    .append(weaponNameComp); // Tutaj też używamy zachowanego koloru
 
             Map<Enchantment, Integer> enchants = weaponItem.getEnchantments();
             if (!enchants.isEmpty()) {
