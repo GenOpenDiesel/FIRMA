@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
@@ -13,19 +14,45 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 public class PlayerDeathListener implements Listener {
 
     private final PlayerStatsManager playerStatsManager;
-    private final Map<UUID, Map<UUID, Long>> lastKillTimestamps = new HashMap<>();
+    private final Map<UUID, Map<UUID, Long>> lastKillTimestamps = new ConcurrentHashMap<>();
+    private static final long COOLDOWN_MILLIS = TimeUnit.MINUTES.toMillis(30);
+    private static final long CLEANUP_INTERVAL_TICKS = 20L * 60 * 10; // 10 minut
 
-    public PlayerDeathListener(PlayerStatsManager playerStatsManager) {
+    public PlayerDeathListener(PlayerStatsManager playerStatsManager, JavaPlugin plugin) {
         this.playerStatsManager = playerStatsManager;
+        
+        // Scheduler do czyszczenia starych timestamps - zapobiega wyciekowi pamięci
+        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::cleanupOldTimestamps, 
+            CLEANUP_INTERVAL_TICKS, CLEANUP_INTERVAL_TICKS);
+    }
+
+    private void cleanupOldTimestamps() {
+        long currentTime = System.currentTimeMillis();
+        
+        Iterator<Map.Entry<UUID, Map<UUID, Long>>> outerIterator = lastKillTimestamps.entrySet().iterator();
+        while (outerIterator.hasNext()) {
+            Map.Entry<UUID, Map<UUID, Long>> entry = outerIterator.next();
+            Map<UUID, Long> victimMap = entry.getValue();
+            
+            // Usuń stare wpisy z wewnętrznej mapy
+            victimMap.entrySet().removeIf(e -> currentTime - e.getValue() > COOLDOWN_MILLIS);
+            
+            // Jeśli mapa jest pusta, usuń cały wpis
+            if (victimMap.isEmpty()) {
+                outerIterator.remove();
+            }
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
@@ -39,8 +66,8 @@ public class PlayerDeathListener implements Listener {
         // Sprawdzenie czy zabójca to gracz i nie jest to samobójstwo
         if (killer != null && !killer.equals(victim)) {
             long currentTime = System.currentTimeMillis();
-            lastKillTimestamps.putIfAbsent(killer.getUniqueId(), new HashMap<>());
-            Map<UUID, Long> victimKillHistory = lastKillTimestamps.get(killer.getUniqueId());
+            Map<UUID, Long> victimKillHistory = lastKillTimestamps.computeIfAbsent(
+                killer.getUniqueId(), k -> new ConcurrentHashMap<>());
 
             long lastKillTime = victimKillHistory.getOrDefault(victim.getUniqueId(), 0L);
 
@@ -48,7 +75,7 @@ public class PlayerDeathListener implements Listener {
             int pointsToAdd = 10;
 
             // Zabezpieczenie: 30 minut cooldownu na tego samego gracza
-            if (currentTime - lastKillTime < TimeUnit.MINUTES.toMillis(30)) {
+            if (currentTime - lastKillTime < COOLDOWN_MILLIS) {
                 // Jeśli jest cooldown: zerujemy punkty, ale kod wykonuje się dalej (wiadomość)
                 pointsToDeduct = 0;
                 pointsToAdd = 0;
@@ -94,13 +121,10 @@ public class PlayerDeathListener implements Listener {
                 // Pusta ręka -> "Reka" na AQUA
                 weaponNameComp = Component.text("Reka").color(NamedTextColor.AQUA);
             }
-            
-            // USUNIĘTO: weaponNameComp = weaponNameComp.color(NamedTextColor.AQUA); 
-            // Dzięki temu customowe kolory (Hex) nie są nadpisywane.
 
             // Budowanie treści Hovera (Dymka)
             Component hoverContent = Component.text("Uzyta bron: ", NamedTextColor.GRAY)
-                    .append(weaponNameComp); // Tutaj też używamy zachowanego koloru
+                    .append(weaponNameComp);
 
             Map<Enchantment, Integer> enchants = weaponItem.getEnchantments();
             if (!enchants.isEmpty()) {
@@ -119,7 +143,6 @@ public class PlayerDeathListener implements Listener {
             Component finalWeaponComponent = weaponNameComp.hoverEvent(HoverEvent.showText(hoverContent));
 
             // Budowanie finalnej wiadomości deathMessage
-            // Format: 🗡 <ofiara>[-XPkt] został zabity przez <zabójca>[+XPkt] używając <broń>
             Component deathMessage = Component.text("🗡 ", NamedTextColor.DARK_RED)
                     .append(Component.text(victim.getName(), NamedTextColor.RED))
                     .append(Component.text("[-" + pointsToDeduct + "pkt]", NamedTextColor.RED))
