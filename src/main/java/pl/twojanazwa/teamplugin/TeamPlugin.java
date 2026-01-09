@@ -39,8 +39,9 @@ public class TeamPlugin extends JavaPlugin {
         Objects.requireNonNull(this.getCommand("team")).setExecutor(teamCommand);
         Objects.requireNonNull(this.getCommand("team")).setTabCompleter(teamCommand);
         
-        getServer().getPluginManager().registerEvents(new PlayerDeathListener(playerStatsManager), this);
+        getServer().getPluginManager().registerEvents(new PlayerDeathListener(playerStatsManager, this), this);
         getServer().getPluginManager().registerEvents(new TeamChatListener(teamManager), this);
+        getServer().getPluginManager().registerEvents(new TeamPvpListener(teamManager), this);
 
         if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
             new TeamPlaceholders(this, teamManager, playerStatsManager).register();
