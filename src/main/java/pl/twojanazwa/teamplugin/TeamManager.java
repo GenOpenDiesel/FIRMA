@@ -13,29 +13,60 @@ import org.bukkit.inventory.ItemStack;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class TeamManager {
 
     public final TeamPlugin plugin;
-    private final Map<String, Team> teams = new HashMap<>();
+    private final Map<String, Team> teams = new ConcurrentHashMap<>();
     // Cache dla szybkiego dostępu (Wydajność: O(1))
-    private final Map<UUID, Team> playerTeamCache = new HashMap<>();
+    private final Map<UUID, Team> playerTeamCache = new ConcurrentHashMap<>();
     
-    private final Map<UUID, String> invites = new HashMap<>();
-    private final Map<UUID, Long> cooldowns = new HashMap<>();
+    private final Map<UUID, String> invites = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> inviteTimestamps = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> cooldowns = new ConcurrentHashMap<>();
     private File teamsFile;
     private FileConfiguration teamsConfig;
     private final PlayerStatsManager playerStatsManager;
-    private List<Team> topTeamsCache = new ArrayList<>();
+    private volatile List<Team> topTeamsCache = new ArrayList<>();
+    
+    private static final long COOLDOWN_SECONDS = 5;
+    private static final long INVITE_EXPIRE_MINUTES = 5;
+    private static final long CLEANUP_INTERVAL_TICKS = 20L * 60 * 5; // 5 minut
 
     public TeamManager(TeamPlugin plugin, PlayerStatsManager playerStatsManager) {
         this.plugin = plugin;
         this.playerStatsManager = playerStatsManager;
         createTeamsFile();
+        
         // Uruchomienie schedulera do aktualizacji rankingu co 5 minut
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::updateTopTeams, 0L, 20L * 60 * 5);
+        
+        // Scheduler do czyszczenia cooldowns i invites - zapobiega wyciekowi pamięci
+        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::cleanupExpiredData, 
+            CLEANUP_INTERVAL_TICKS, CLEANUP_INTERVAL_TICKS);
+    }
+
+    private void cleanupExpiredData() {
+        long currentTime = System.currentTimeMillis();
+        long cooldownExpireTime = TimeUnit.SECONDS.toMillis(COOLDOWN_SECONDS);
+        long inviteExpireTime = TimeUnit.MINUTES.toMillis(INVITE_EXPIRE_MINUTES);
+        
+        // Czyszczenie cooldowns
+        cooldowns.entrySet().removeIf(entry -> 
+            currentTime - entry.getValue() > cooldownExpireTime);
+        
+        // Czyszczenie wygasłych zaproszeń
+        Iterator<Map.Entry<UUID, Long>> iterator = inviteTimestamps.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, Long> entry = iterator.next();
+            if (currentTime - entry.getValue() > inviteExpireTime) {
+                invites.remove(entry.getKey());
+                iterator.remove();
+            }
+        }
     }
 
     private String getMessage(String path, String... replacements) {
@@ -51,8 +82,9 @@ public class TeamManager {
     }
 
     private boolean checkCooldown(Player player) {
-        if (cooldowns.containsKey(player.getUniqueId())) {
-            long secondsLeft = ((cooldowns.get(player.getUniqueId()) / 1000) + 5) - (System.currentTimeMillis() / 1000);
+        Long cooldownTime = cooldowns.get(player.getUniqueId());
+        if (cooldownTime != null) {
+            long secondsLeft = ((cooldownTime / 1000) + COOLDOWN_SECONDS) - (System.currentTimeMillis() / 1000);
             if (secondsLeft > 0) {
                 player.sendMessage(getMessage("cooldown", "%seconds%", String.valueOf(secondsLeft)));
                 return true;
@@ -150,7 +182,10 @@ public class TeamManager {
             return;
         }
 
+        long currentTime = System.currentTimeMillis();
         invites.put(target.getUniqueId(), team.getName());
+        inviteTimestamps.put(target.getUniqueId(), currentTime);
+        
         leader.sendMessage(getMessage("zaproszono-gracza", "%player%", target.getName()));
         target.sendMessage(getMessage("otrzymano-zaproszenie", "%nazwa%", team.getName()));
         setCooldown(leader);
@@ -166,6 +201,7 @@ public class TeamManager {
         if (getTeamByPlayer(player) != null) {
             player.sendMessage(getMessage("juz-w-teamie"));
             invites.remove(player.getUniqueId());
+            inviteTimestamps.remove(player.getUniqueId());
             return;
         }
 
@@ -175,12 +211,14 @@ public class TeamManager {
         if (team == null) {
             player.sendMessage(getMessage("team-nie-istnieje"));
             invites.remove(player.getUniqueId());
+            inviteTimestamps.remove(player.getUniqueId());
             return;
         }
 
         team.addMember(player.getUniqueId());
         playerTeamCache.put(player.getUniqueId(), team); // Aktualizacja cache
         invites.remove(player.getUniqueId());
+        inviteTimestamps.remove(player.getUniqueId());
         Bukkit.broadcastMessage(getMessage("gracz-dolaczyl-globalnie", "%player%", player.getName(), "%nazwa%", team.getName()));
         setCooldown(player);
     }
@@ -513,9 +551,11 @@ public class TeamManager {
     }
 
     public void updateTopTeams() {
-        topTeamsCache = teams.values().stream()
+        // Thread-safe: tworzymy nową listę i przypisujemy atomowo
+        List<Team> newCache = teams.values().stream()
                 .sorted(Comparator.comparingInt(Team::getPoints).reversed())
                 .limit(10)
                 .collect(Collectors.toList());
+        topTeamsCache = newCache;
     }
 }
