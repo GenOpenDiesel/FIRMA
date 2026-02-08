@@ -1,14 +1,14 @@
-name: TeamPlugin
+name: FirmaPlugin
 version: '${project.version}'
-main: pl.twojanazwa.teamplugin.TeamPlugin
+main: pl.twojanazwa.firmaplugin.FirmaPlugin
 api-version: '1.20'
 author: TwojaNazwa
-description: Prosty plugin na teamy.
+description: Plugin do zarzadzania firmami z systemem skarbca.
 depend: [Vault]
-softdepend: [PlaceholderAPI] # PlaceholderAPI nie jest wymagane, ale zalecane
+softdepend: [PlaceholderAPI]
 
 commands:
-  team:
-    description: Główna komenda do zarządzania teamem.
-    usage: /team <stworz|zapros|akceptuj|wyrzuc|usun|lider|degrad|info|pvp|opusc|top|sethome|home>
-    aliases: [t]
+  firma:
+    description: Glowna komenda do zarzadzania firma.
+    usage: /firma <stworz|zapros|akceptuj|wyrzuc|usun|zastepca|degraduj|info|wplac|wyplac|pvp|opusc|top|sethome|home>
+    aliases: [f]
