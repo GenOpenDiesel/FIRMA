@@ -12,6 +12,8 @@ import org.bukkit.entity.Player;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -21,7 +23,6 @@ public class FirmaManager {
 
     public final FirmaPlugin plugin;
     private final Map<String, Firma> firmy = new ConcurrentHashMap<>();
-    // Cache dla szybkiego dostępu O(1) — gracz → firma
     private final Map<UUID, Firma> playerFirmaCache = new ConcurrentHashMap<>();
 
     private final Map<UUID, String> invites = new ConcurrentHashMap<>();
@@ -33,21 +34,30 @@ public class FirmaManager {
 
     private static final long COOLDOWN_SECONDS = 5;
     private static final long INVITE_EXPIRE_MINUTES = 5;
-    private static final long CLEANUP_INTERVAL_TICKS = 20L * 60 * 5; // 5 minut
+    private static final long CLEANUP_INTERVAL_TICKS = 20L * 60 * 5;
 
     public FirmaManager(FirmaPlugin plugin) {
         this.plugin = plugin;
         createFirmyFile();
 
-        // Aktualizacja rankingu co 5 minut (async)
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::updateTopFirmy, 0L, 20L * 60 * 5);
-
-        // Czyszczenie cooldowns i zaproszeń co 5 minut (async)
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::cleanupExpiredData,
                 CLEANUP_INTERVAL_TICKS, CLEANUP_INTERVAL_TICKS);
     }
 
-    // === Czyszczenie wygasłych danych ===
+    // === Helper: Zaokrąglanie i walidacja ===
+    private double round(double value) {
+        // Bezpieczne zaokrąglanie do 2 miejsc po przecinku
+        return BigDecimal.valueOf(value)
+                .setScale(2, RoundingMode.HALF_UP)
+                .doubleValue();
+    }
+
+    private boolean isInvalidAmount(double amount) {
+        return Double.isNaN(amount) || Double.isInfinite(amount) || amount <= 0;
+    }
+    // =========================================
+
     private void cleanupExpiredData() {
         long currentTime = System.currentTimeMillis();
         long cooldownExpireTime = TimeUnit.SECONDS.toMillis(COOLDOWN_SECONDS);
@@ -66,7 +76,6 @@ public class FirmaManager {
         }
     }
 
-    // === Wiadomości z config ===
     private String getMessage(String path, String... replacements) {
         String message = plugin.getConfig().getString("messages." + path, "&cWiadomosc nie znaleziona: " + path);
         for (int i = 0; i < replacements.length; i += 2) {
@@ -99,9 +108,6 @@ public class FirmaManager {
         return Collections.unmodifiableMap(firmy);
     }
 
-    // ============================
-    //  TWORZENIE FIRMY
-    // ============================
     public void createFirma(Player player, String name) {
         if (getFirmaByPlayer(player) != null) {
             player.sendMessage(getMessage("juz-w-firmie"));
@@ -118,7 +124,6 @@ public class FirmaManager {
             return;
         }
 
-        // Koszt w monetach Vault
         double creationCost = plugin.getConfig().getDouble("creation-cost", 75000);
         Economy econ = FirmaPlugin.getEconomy();
         if (!econ.has(player, creationCost)) {
@@ -138,10 +143,6 @@ public class FirmaManager {
         Bukkit.broadcastMessage(getMessage("firma-stworzona-globalnie", "%player%", player.getName(), "%nazwa%", name));
     }
 
-
-    // ============================
-    //  ZAPROSZENIA
-    // ============================
     public void invitePlayer(Player leader, String targetName) {
         if (checkCooldown(leader)) return;
         Firma firma = getFirmaByPlayer(leader);
@@ -201,9 +202,6 @@ public class FirmaManager {
         setCooldown(player);
     }
 
-    // ============================
-    //  WYRZUCANIE
-    // ============================
     public void kickPlayer(Player leader, String targetName) {
         if (checkCooldown(leader)) return;
         Firma firma = getFirmaByPlayer(leader);
@@ -248,7 +246,6 @@ public class FirmaManager {
             return;
         }
 
-        // Zastępca nie może wyrzucić innego zastępcy
         if (firma.isDeputy(leader.getUniqueId()) && firma.isDeputy(targetUUID)) {
             leader.sendMessage(getMessage("zastepca-nie-moze-wyrzucic-zastepcy"));
             return;
@@ -260,9 +257,6 @@ public class FirmaManager {
         setCooldown(leader);
     }
 
-    // ============================
-    //  ADMIN: WYRZUCANIE / USUWANIE
-    // ============================
     public void forceKickPlayer(CommandSender sender, String targetName) {
         if (!sender.hasPermission("firmaplugin.admin")) {
             sender.sendMessage(ChatColor.RED + "Brak uprawnien! (firmaplugin.admin)");
@@ -319,9 +313,6 @@ public class FirmaManager {
         sender.sendMessage(ChatColor.GREEN + "ADMIN: Usunieto firme " + firma.getName());
     }
 
-    // ============================
-    //  USUWANIE FIRMY
-    // ============================
     public void deleteFirma(Player owner) {
         Firma firma = getFirmaByPlayer(owner);
         if (firma == null || !firma.isOwner(owner.getUniqueId())) {
@@ -338,9 +329,6 @@ public class FirmaManager {
         firmy.remove(firma.getName().toLowerCase());
     }
 
-    // ============================
-    //  ZASTĘPCY SZEFA
-    // ============================
     public void promoteToDeputy(Player owner, String targetName) {
         Firma firma = getFirmaByPlayer(owner);
         if (firma == null || !firma.isOwner(owner.getUniqueId())) {
@@ -381,9 +369,9 @@ public class FirmaManager {
     }
 
     // ============================
-    //  SKARBIEC (VAULT) — tylko szef + zastępca
+    //  SKARBIEC (VAULT) - POPRAWIONA WALIDACJA
     // ============================
-    public void depositToVault(Player player, double amount) {
+    public void depositToVault(Player player, double rawAmount) {
         if (checkCooldown(player)) return;
         Firma firma = getFirmaByPlayer(player);
         if (firma == null || !firma.isOwnerOrDeputy(player.getUniqueId())) {
@@ -391,10 +379,12 @@ public class FirmaManager {
             return;
         }
 
-        if (amount <= 0) {
+        // WALIDACJA KWOTY
+        if (isInvalidAmount(rawAmount)) {
             player.sendMessage(getMessage("kwota-nieprawidlowa"));
             return;
         }
+        double amount = round(rawAmount); // Zaokrąglamy
 
         Economy econ = FirmaPlugin.getEconomy();
         if (!econ.has(player, amount)) {
@@ -416,7 +406,7 @@ public class FirmaManager {
         setCooldown(player);
     }
 
-    public void withdrawFromVault(Player player, double amount) {
+    public void withdrawFromVault(Player player, double rawAmount) {
         if (checkCooldown(player)) return;
         Firma firma = getFirmaByPlayer(player);
         if (firma == null || !firma.isOwnerOrDeputy(player.getUniqueId())) {
@@ -424,10 +414,12 @@ public class FirmaManager {
             return;
         }
 
-        if (amount <= 0) {
+        // WALIDACJA KWOTY
+        if (isInvalidAmount(rawAmount)) {
             player.sendMessage(getMessage("kwota-nieprawidlowa"));
             return;
         }
+        double amount = round(rawAmount);
 
         if (!firma.withdrawVault(amount)) {
             player.sendMessage(getMessage("brak-srodkow-w-skarbcu"));
@@ -437,7 +429,7 @@ public class FirmaManager {
         Economy econ = FirmaPlugin.getEconomy();
         EconomyResponse response = econ.depositPlayer(player, amount);
         if (!response.transactionSuccess()) {
-            // Cofnij wypłatę ze skarbca jeśli nie udało się dodać graczowi
+            // Rollback w przypadku błędu Vault
             firma.depositVault(amount);
             player.sendMessage(getMessage("blad-transakcji"));
             return;
@@ -450,9 +442,6 @@ public class FirmaManager {
         setCooldown(player);
     }
 
-    // ============================
-    //  WYPŁATA DLA PRACOWNIKÓW
-    // ============================
     public void payWorkers(Player boss, double percent) {
         if (checkCooldown(boss)) return;
         Firma firma = getFirmaByPlayer(boss);
@@ -461,12 +450,11 @@ public class FirmaManager {
             return;
         }
 
-        if (percent <= 0 || percent > 100) {
+        if (Double.isNaN(percent) || Double.isInfinite(percent) || percent <= 0 || percent > 100) {
             boss.sendMessage(getMessage("procent-nieprawidlowy"));
             return;
         }
 
-        // Pracownicy = wszyscy członkowie oprócz szefa
         List<UUID> workers = firma.getMembers().stream()
                 .filter(uuid -> !firma.isOwner(uuid))
                 .collect(Collectors.toList());
@@ -476,15 +464,24 @@ public class FirmaManager {
             return;
         }
 
-        double totalPayout = firma.getVault() * (percent / 100.0);
+        double totalVault = firma.getVault();
+        double totalPayout = round(totalVault * (percent / 100.0));
+        
         if (totalPayout <= 0) {
             boss.sendMessage(getMessage("brak-srodkow-w-skarbcu"));
             return;
         }
 
-        double perWorker = totalPayout / workers.size();
+        double perWorker = round(totalPayout / workers.size());
 
-        // Wypłać ze skarbca
+        if (perWorker <= 0) {
+             boss.sendMessage(getMessage("brak-srodkow-w-skarbcu"));
+             return;
+        }
+        
+        // Ponowne przeliczenie totalPayout po zaokrągleniu perWorker, żeby nie wypłacić za dużo
+        totalPayout = perWorker * workers.size();
+
         if (!firma.withdrawVault(totalPayout)) {
             boss.sendMessage(getMessage("brak-srodkow-w-skarbcu"));
             return;
@@ -499,7 +496,6 @@ public class FirmaManager {
             EconomyResponse response = econ.depositPlayer(worker, perWorker);
             if (response.transactionSuccess()) {
                 successCount++;
-                // Powiadom online gracza
                 Player onlineWorker = Bukkit.getPlayer(workerUUID);
                 if (onlineWorker != null && onlineWorker.isOnline()) {
                     onlineWorker.sendMessage(getMessage("otrzymano-wyplate",
@@ -510,7 +506,6 @@ public class FirmaManager {
             }
         }
 
-        // Jeśli jakieś transakcje się nie udały, zwróć pieniądze do skarbca
         if (failedAmount > 0) {
             firma.depositVault(failedAmount);
         }
@@ -525,20 +520,13 @@ public class FirmaManager {
         setCooldown(boss);
     }
 
-    // ============================
-    //  INFO O FIRMIE
-    // ============================
     public void getFirmaInfo(Player player, String name) {
-        // Najpierw szukamy po nazwie firmy
         Firma found = firmy.get(name.toLowerCase());
-
-        // Jeśli nie znaleziono po nazwie firmy, szukamy po nicku gracza
         if (found == null) {
             Player targetOnline = Bukkit.getPlayer(name);
             if (targetOnline != null) {
                 found = getFirmaByPlayer(targetOnline);
             }
-            // Szukaj offline gracza
             if (found == null) {
                 for (Firma f : firmy.values()) {
                     for (UUID memberId : f.getMembers()) {
@@ -600,9 +588,6 @@ public class FirmaManager {
         player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&2&m----------------------------------"));
     }
 
-    // ============================
-    //  PVP TOGGLE
-    // ============================
     public void togglePvp(Player player) {
         Firma firma = getFirmaByPlayer(player);
         if (firma == null || !firma.isOwnerOrDeputy(player.getUniqueId())) {
@@ -615,9 +600,6 @@ public class FirmaManager {
         firma.broadcast(getMessage("pvp-zmienione", "%status%", pvpStatus));
     }
 
-    // ============================
-    //  OPUSZCZANIE FIRMY
-    // ============================
     public void leaveFirma(Player player) {
         if (checkCooldown(player)) return;
         Firma firma = getFirmaByPlayer(player);
@@ -638,9 +620,6 @@ public class FirmaManager {
         setCooldown(player);
     }
 
-    // ============================
-    //  HOME
-    // ============================
     public void setHome(Player player) {
         Firma firma = getFirmaByPlayer(player);
         if (firma == null || !firma.isOwnerOrDeputy(player.getUniqueId())) {
@@ -665,9 +644,6 @@ public class FirmaManager {
         player.sendMessage(getMessage("teleportowano-do-domu"));
     }
 
-    // ============================
-    //  CACHE — szybki dostęp O(1)
-    // ============================
     public Firma getFirmaByPlayer(Player player) {
         return getFirmaByPlayer(player.getUniqueId());
     }
@@ -680,9 +656,6 @@ public class FirmaManager {
         return firmy.get(name.toLowerCase());
     }
 
-    // ============================
-    //  TOP FIRMY
-    // ============================
     public void showTopFirmy(Player player) {
         List<Firma> sortedFirmy = getTopFirmy();
 
@@ -710,9 +683,6 @@ public class FirmaManager {
         topFirmyCache = newCache;
     }
 
-    // ============================
-    //  ZAPIS / ODCZYT
-    // ============================
     private void createFirmyFile() {
         firmyFile = new File(plugin.getDataFolder(), "firmy.yml");
         if (!firmyFile.exists()) {
@@ -726,6 +696,7 @@ public class FirmaManager {
     }
 
     public void saveFirmy() {
+        // Zabezpieczenie przed zapisem pustej sekcji
         firmyConfig.set("firmy", null);
 
         for (Map.Entry<String, Firma> entry : firmy.entrySet()) {
@@ -746,16 +717,18 @@ public class FirmaManager {
         playerFirmaCache.clear();
 
         firmyConfig.getConfigurationSection("firmy").getKeys(false).forEach(key -> {
-            Firma firma = (Firma) firmyConfig.get("firmy." + key);
-            if (firma != null) {
-                firmy.put(key, firma);
-
-                for (UUID memberId : firma.getMembers()) {
-                    playerFirmaCache.put(memberId, firma);
+            try {
+                Firma firma = (Firma) firmyConfig.get("firmy." + key);
+                if (firma != null) {
+                    firmy.put(key, firma);
+                    for (UUID memberId : firma.getMembers()) {
+                        playerFirmaCache.put(memberId, firma);
+                    }
                 }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Nie udalo sie zaladowac firmy: " + key);
             }
         });
         updateTopFirmy();
     }
 }
-
