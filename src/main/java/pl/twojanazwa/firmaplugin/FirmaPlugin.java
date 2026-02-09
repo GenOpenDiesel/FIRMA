@@ -15,7 +15,6 @@ public class FirmaPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        // Rejestracja klasy do serializacji YAML
         ConfigurationSerialization.registerClass(Firma.class);
 
         if (!setupEconomy()) {
@@ -40,11 +39,11 @@ public class FirmaPlugin extends JavaPlugin {
             new FirmaPlaceholders(this, firmaManager).register();
         }
 
-        // Automatyczny zapis co 10 minut (async)
-        Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+        // ZMIANA: Zapis SYNCHRONICZNY, aby uniknąć uszkodzenia pliku firmy.yml
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
             firmaManager.saveFirmy();
             getLogger().info("Automatycznie zapisano dane firm.");
-        }, 0L, 20L * 60 * 10);
+        }, 20L * 60 * 10, 20L * 60 * 10); // Co 10 minut
 
         getLogger().info("FirmaPlugin zostal wlaczony!");
     }
@@ -73,4 +72,3 @@ public class FirmaPlugin extends JavaPlugin {
         return econ;
     }
 }
-
