@@ -45,7 +45,7 @@ public class FirmaPlaceholders extends PlaceholderExpansion {
         // %firma_gracz_tag%
         if (params.equals("gracz_tag")) {
             Firma firma = firmaManager.getFirmaByPlayer(player);
-            return (firma != null) ? firma.getName() : "Brak";
+            return (firma != null) ? "&8[&f" + firma.getName() + "&8]" : "";
         }
 
         // %firma_vault% — saldo skarbca
