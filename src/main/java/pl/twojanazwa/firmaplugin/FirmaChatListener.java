@@ -19,11 +19,13 @@ public class FirmaChatListener implements Listener {
         Player player = event.getPlayer();
         String message = event.getMessage();
 
-        if (message.startsWith("!")) {
+        // ZMIANA: Reagujemy na "!!" zamiast "!"
+        if (message.startsWith("!!")) {
             Firma firma = firmaManager.getFirmaByPlayer(player);
             if (firma != null) {
                 event.setCancelled(true);
-                String firmaMessage = message.substring(1);
+                // ZMIANA: Wycinamy 2 znaki (!!) zamiast 1
+                String firmaMessage = message.substring(2);
                 String format = firmaManager.plugin.getConfig().getString("messages.firma-chat-format",
                         "&8[&2Firma Chat&8] &a%player%&8: &f%message%");
                 format = format.replace("%player%", player.getName()).replace("%message%", firmaMessage);
@@ -32,4 +34,3 @@ public class FirmaChatListener implements Listener {
         }
     }
 }
-
